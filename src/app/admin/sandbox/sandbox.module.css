@@ -1,0 +1,273 @@
+.sandboxContainer {
+  display: flex;
+  height: 100vh;
+  background-color: #0c0f14;
+}
+
+/* Sidebar styling mimicking WhatsApp Web left pane */
+.chatListPane {
+  width: 340px;
+  background-color: #11151d;
+  border-right: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+}
+
+.paneHeader {
+  height: 60px;
+  background-color: #1e2430;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.paneHeaderTitle {
+  font-weight: 700;
+  color: #fff;
+  font-size: 1.05rem;
+}
+
+.controllerCard {
+  padding: 16px;
+  background-color: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.controllerTitle {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.contactsList {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.contactItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.contactItemActive {
+  background-color: #222d3a;
+}
+
+.contactAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+}
+
+.contactDetails {
+  flex: 1;
+  overflow: hidden;
+}
+
+.contactName {
+  font-weight: 600;
+  color: #fff;
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.contactStatus {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Chat window area */
+.chatWindow {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #0b0d14;
+  position: relative;
+}
+
+.chatHeader {
+  height: 60px;
+  background-color: #1e2430;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 12px;
+  z-index: 5;
+}
+
+.chatTitleInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.chatTitle {
+  font-weight: 600;
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.chatSubtitle {
+  font-size: 0.75rem;
+  color: var(--color-success);
+}
+
+/* Message Area with WhatsApp wallpaper look */
+.messageArea {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background-image: radial-gradient(#1c2230 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.messageBubble {
+  max-width: 65%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  position: relative;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.bubbleUser {
+  background-color: #005c4b; /* WhatsApp dark user bubble color */
+  color: #e9edef;
+  align-self: flex-end;
+  border-top-right-radius: 0;
+  box-shadow: 0 1px 1px rgba(0,0,0,0.2);
+}
+
+.bubbleBot {
+  background-color: #202c33; /* WhatsApp dark system bubble color */
+  color: #e9edef;
+  align-self: flex-start;
+  border-top-left-radius: 0;
+  box-shadow: 0 1px 1px rgba(0,0,0,0.2);
+}
+
+.messageTime {
+  display: block;
+  text-align: right;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 4px;
+}
+
+/* Link Cards inside chat bubble */
+.linkCard {
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.linkTitle {
+  font-weight: 700;
+  color: var(--color-secondary);
+  font-size: 0.85rem;
+}
+
+.linkText {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.linkBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--color-secondary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-decoration: none;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: opacity 0.2s;
+}
+
+.linkBtn:hover {
+  opacity: 0.9;
+}
+
+/* Bottom Send Pane */
+.inputPane {
+  height: 62px;
+  background-color: #1e2430;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  border-top: 1px solid var(--border-light);
+}
+
+.chatInput {
+  flex: 1;
+  background-color: #2a3942;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  color: #fff;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.sendBtn {
+  background: none;
+  border: none;
+  color: var(--color-secondary);
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  transition: transform 0.1s;
+}
+
+.sendBtn:hover {
+  transform: scale(1.1);
+  color: #fff;
+}
+
+.sendBtn:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+  transform: none;
+}
