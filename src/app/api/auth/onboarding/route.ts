@@ -74,6 +74,7 @@ export async function POST(request: Request) {
       await tx.adminUser.upsert({
         where: { email: adminEmail.toLowerCase() },
         update: {
+          authUserId: data.user.id,
           name: adminName,
           role: "COMPANY_ADMIN",
           status: "active",

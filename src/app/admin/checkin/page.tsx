@@ -35,7 +35,7 @@ interface AttendanceRecord {
   selfieUrl: string;
   distanceFromOffice: number;
   status: string;
-  checkInTime: string | null;
+  checkInTime: string;
   checkoutTime?: string | null;
   workHours?: string | null;
   deviceInfo: string;
@@ -103,7 +103,7 @@ const getPeriodRange = (period: Period) => {
   };
 };
 
-export default function CheckAttendancePage() {
+export default function CheckInLogsPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
@@ -141,6 +141,7 @@ export default function CheckAttendancePage() {
         search,
         startDate: selectedRange.startDate,
         endDate: selectedRange.endDate,
+        type: "check-in", // Only fetch check-ins
       });
       const res = await fetch(`/api/admin/records?${query.toString()}`, { headers: selectedCompanyHeaders });
       const data = await res.json();
@@ -175,11 +176,11 @@ export default function CheckAttendancePage() {
   const exportToCSV = () => {
     if (records.length === 0) return;
 
-    const headers = ["Employee ID", "Employee Name", "Check-In Time", "Checkout Time", "Work Hours", "Distance (m)", "Status", "Festival", "Device"];
+    const headers = ["Employee ID", "Employee Name", "Date/Time (Check-In)", "Checkout Time", "Work Hours", "Distance (m)", "Status", "Festival", "Device"];
     const rows = records.map((record) => [
       record.employeeId,
       record.employeeName,
-      record.checkInTime ? formatDateTimeToDDMMYYYY(record.checkInTime) : "-",
+      formatDateTimeToDDMMYYYY(record.checkInTime),
       record.checkoutTime ? formatDateTimeToDDMMYYYY(record.checkoutTime) : "-",
       record.workHours || "-",
       Math.round(record.distanceFromOffice),
@@ -193,7 +194,7 @@ export default function CheckAttendancePage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Check_Attendance_${period}_${selectedRange.startDate}_to_${selectedRange.endDate}.csv`;
+    link.download = `CheckIn_Logs_${period}_${selectedRange.startDate}_to_${selectedRange.endDate}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -204,14 +205,14 @@ export default function CheckAttendancePage() {
     <AuthGate>
       <div className={styles.adminLayout}>
       {/* Sidebar Navigation */}
-      <Sidebar activeKey="attendance" onCompanyChange={(id) => setSelectedCompanyId(id)} />
+      <Sidebar activeKey="checkin" onCompanyChange={(id) => setSelectedCompanyId(id)} />
 
       <main className={styles.mainContainer}>
         <div className={styles.header}>
           <div>
-            <h1 className={styles.headerTitle}>Check Attendance</h1>
+            <h1 className={styles.headerTitle}>Check-In Logs</h1>
             <p className={styles.headerSubtitle}>
-              Daily, weekly, and monthly attendance by employee
+              View and export employee check-in entries and location verification
             </p>
           </div>
           <button onClick={exportToCSV} disabled={records.length === 0} className="btn btn-primary">
@@ -229,7 +230,7 @@ export default function CheckAttendancePage() {
           </div>
           <div className={`${styles.statCard} glass-panel`}>
             <div className={styles.statHeader}>
-              <span>Present</span>
+              <span>Within Boundary</span>
               <CheckCircle size={16} color="var(--color-success)" />
             </div>
             <div className={styles.statValue}>{presentCount}</div>
@@ -245,7 +246,7 @@ export default function CheckAttendancePage() {
           </div>
           <div className={`${styles.statCard} glass-panel`}>
             <div className={styles.statHeader}>
-              <span>Employees Seen</span>
+              <span>Employees Checked In</span>
               <Users size={16} color="var(--color-secondary)" />
             </div>
             <div className={styles.statValue}>{uniqueEmployeeCount}</div>
@@ -255,7 +256,7 @@ export default function CheckAttendancePage() {
         <div className={`${styles.contentCard} glass-panel`}>
           <div className={styles.cardHeader}>
             <div>
-              <h2 className={styles.cardTitle}>Attendance Filters</h2>
+              <h2 className={styles.cardTitle}>Filter Records</h2>
               <p className={styles.cardMeta}>
                 {formatDateToDDMMYYYY(selectedRange.startDate)} to {formatDateToDDMMYYYY(selectedRange.endDate)}
                 {selectedEmployee ? ` | ${selectedEmployee.fullName}` : " | All employees"}
@@ -301,11 +302,11 @@ export default function CheckAttendancePage() {
 
           {loadingRecords ? (
             <p style={{ textAlign: "center", color: "var(--text-secondary)", padding: "20px" }}>
-              Loading attendance...
+              Loading logs...
             </p>
           ) : records.length === 0 ? (
             <p style={{ textAlign: "center", color: "var(--text-secondary)", padding: "20px" }}>
-              No attendance found for this filter.
+              No check-in logs found.
             </p>
           ) : (
             <div className={styles.tableWrapper}>
@@ -330,7 +331,7 @@ export default function CheckAttendancePage() {
                       <td>
                         <img
                           src={record.selfieUrl}
-                          alt="Attendance selfie"
+                          alt="Selfie"
                           className={styles.thumbnail}
                           onClick={() => setActiveSelfie(record.selfieUrl)}
                         />
@@ -338,19 +339,13 @@ export default function CheckAttendancePage() {
                       <td style={{ fontWeight: 700 }}>{record.employeeId}</td>
                       <td>{record.employeeName}</td>
                       <td>
-                        {record.checkInTime ? (
-                          <>
-                            {formatDateToDDMMYYYY(record.checkInTime)}{" "}
-                            <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>
-                              {new Date(record.checkInTime).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </>
-                        ) : (
-                          <span style={{ color: "var(--text-secondary)" }}>-</span>
-                        )}
+                        {formatDateToDDMMYYYY(record.checkInTime)}{" "}
+                        <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>
+                          {new Date(record.checkInTime).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
                       </td>
                       <td>
                         {record.checkoutTime ? (

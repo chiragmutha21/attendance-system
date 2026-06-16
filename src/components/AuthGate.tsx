@@ -10,8 +10,10 @@ interface AuthGateProps {
   allowOnboarding?: boolean;
 }
 
+let globalIsAuthed = false;
+
 export default function AuthGate({ children, requireSuperAdmin = false, allowOnboarding = false }: AuthGateProps) {
-  const [checking, setChecking] = useState(true);
+  const [checking, setChecking] = useState(() => !globalIsAuthed);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -22,6 +24,7 @@ export default function AuthGate({ children, requireSuperAdmin = false, allowOnb
           return;
         }
 
+        globalIsAuthed = true;
         setChecking(false);
         return;
       }
@@ -58,6 +61,7 @@ export default function AuthGate({ children, requireSuperAdmin = false, allowOnb
         return;
       }
 
+      globalIsAuthed = true;
       setChecking(false);
     };
 

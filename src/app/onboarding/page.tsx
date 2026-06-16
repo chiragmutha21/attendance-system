@@ -23,8 +23,8 @@ function OnboardingContent() {
   const [companyName, setCompanyName] = useState("");
   const [phoneDigits, setPhoneDigits] = useState("");
   const [employeeLimit, setEmployeeLimit] = useState("25");
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
+  const [latitude, setLatitude] = useState("28.6139");
+  const [longitude, setLongitude] = useState("77.2090");
   const [radius, setRadius] = useState("200");
 
   const fillOfficeLocation = () => {

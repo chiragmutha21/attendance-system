@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import styles from "../admin/admin.module.css";
+import Sidebar from "@/components/Sidebar";
 
 interface Company {
   id: string;
@@ -344,23 +345,7 @@ export default function SuperAdminPage() {
 
   return (
     <div className={styles.adminLayout}>
-      <aside className={styles.sidebar}>
-        <div className={styles.brand}>
-          <Sparkles className={styles.brandIcon} size={22} />
-          <span className="glow-text-purple">SmartOffice</span>
-        </div>
-        <nav className={styles.navMenu}>
-          <Link href="/superadmin" className={`${styles.navLink} ${styles.navLinkActive}`}>
-            <ShieldCheck size={18} /> Super Admin
-          </Link>
-        </nav>
-        <div className={styles.sidebarFooter}>
-          <div className={styles.statusIndicator}>
-            <div className={`${styles.statusDot} ${styles.statusDotPulse}`} />
-            <span>Super Admin View</span>
-          </div>
-        </div>
-      </aside>
+      <Sidebar activeKey="superadmin" isSuperAdmin />
 
       <main className={styles.mainContainer}>
         <div className={styles.header}>

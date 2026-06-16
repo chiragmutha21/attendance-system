@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Building2, ExternalLink, ShieldCheck, Sparkles, Users } from "lucide-react";
 import AuthGate from "@/components/AuthGate";
+import Sidebar from "@/components/Sidebar";
 import styles from "../../admin/admin.module.css";
 
 interface Company {
@@ -50,26 +51,7 @@ export default function CompanyAdminDetailsPage() {
   return (
     <AuthGate requireSuperAdmin>
       <div className={styles.adminLayout}>
-      <aside className={styles.sidebar}>
-        <div className={styles.brand}>
-          <Sparkles className={styles.brandIcon} size={22} />
-          <span className="glow-text-purple">SmartOffice</span>
-        </div>
-        <nav className={styles.navMenu}>
-          <Link href="/superadmin" className={styles.navLink}>
-            <ShieldCheck size={18} /> Super Admin
-          </Link>
-          <Link href="/superadmin/company-admin" className={`${styles.navLink} ${styles.navLinkActive}`}>
-            <Building2 size={18} /> Company Details
-          </Link>
-        </nav>
-        <div className={styles.sidebarFooter}>
-          <div className={styles.statusIndicator}>
-            <div className={`${styles.statusDot} ${styles.statusDotPulse}`} />
-            <span>Company Admins</span>
-          </div>
-        </div>
-      </aside>
+      <Sidebar activeKey="company-admin" isSuperAdmin />
 
       <main className={styles.mainContainer}>
         <div className={styles.header}>

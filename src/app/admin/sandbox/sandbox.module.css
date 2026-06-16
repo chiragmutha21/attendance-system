@@ -2,6 +2,8 @@
   display: flex;
   height: 100vh;
   background-color: #0c0f14;
+  margin-left: 260px;
+  flex: 1;
 }
 
 /* Sidebar styling mimicking WhatsApp Web left pane */
@@ -11,6 +13,7 @@
   border-right: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
 }
 
 .paneHeader {
@@ -75,6 +78,7 @@
   justify-content: center;
   color: #fff;
   font-weight: 700;
+  flex-shrink: 0;
 }
 
 .contactDetails {
@@ -104,6 +108,7 @@
   flex-direction: column;
   background-color: #0b0d14;
   position: relative;
+  min-width: 0;
 }
 
 .chatHeader {
@@ -115,6 +120,7 @@
   padding: 0 20px;
   gap: 12px;
   z-index: 5;
+  flex-shrink: 0;
 }
 
 .chatTitleInfo {
@@ -235,6 +241,7 @@
   padding: 0 16px;
   gap: 12px;
   border-top: 1px solid var(--border-light);
+  flex-shrink: 0;
 }
 
 .chatInput {
@@ -271,3 +278,40 @@
   cursor: not-allowed;
   transform: none;
 }
+
+/* ===== Sandbox Mobile Responsive ===== */
+@media (max-width: 768px) {
+  .sandboxContainer {
+    margin-left: 0;
+    flex-direction: column;
+    height: calc(100vh - 60px);
+    margin-top: 60px;
+  }
+
+  .chatListPane {
+    width: 100%;
+    max-height: 280px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .chatWindow {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .messageBubble {
+    max-width: 85%;
+  }
+
+  .messageArea {
+    padding: 16px;
+  }
+
+  .inputPane {
+    height: 56px;
+    padding: 0 12px;
+    gap: 8px;
+  }
+}
+

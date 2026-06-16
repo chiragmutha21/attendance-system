@@ -51,6 +51,7 @@
   text-decoration: none;
   transition: all 0.2s;
   cursor: pointer;
+  border: 1px solid transparent;
 }
 
 .navLink:hover {
@@ -483,6 +484,251 @@
   0% { opacity: 0.4; }
   50% { opacity: 1; }
   100% { opacity: 0.4; }
+}
+
+/* ===== Mobile Header & Hamburger ===== */
+.mobileHeader {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: rgba(14, 16, 27, 0.97);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-light);
+  z-index: 200;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+
+.mobileHeaderBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.hamburgerBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.hamburgerBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--color-primary);
+}
+
+.sidebarOverlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 250;
+}
+
+.sidebarOverlay.sidebarOverlayVisible {
+  display: block;
+}
+
+.sidebarCloseBtn {
+  display: none;
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.sidebarCloseBtn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--color-danger);
+}
+
+/* ===== Mobile Responsive Breakpoint ===== */
+@media (max-width: 768px) {
+  .mobileHeader {
+    display: flex;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 300;
+    width: 280px;
+    padding-top: 60px;
+  }
+
+  .sidebarOpen {
+    transform: translateX(0);
+  }
+
+  .sidebarCloseBtn {
+    display: flex;
+    top: 20px;
+  }
+
+  .mainContainer {
+    margin-left: 0;
+    padding: 80px 16px 24px 16px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .headerTitle {
+    font-size: 1.35rem;
+  }
+
+  .headerSubtitle {
+    font-size: 0.82rem;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .statCard {
+    padding: 16px;
+  }
+
+  .statValue {
+    font-size: 1.5rem;
+  }
+
+  .statHeader {
+    font-size: 0.72rem;
+    margin-bottom: 8px;
+  }
+
+  .dashboardGrid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .contentCard {
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+
+  .cardHeader {
+    margin-bottom: 14px;
+  }
+
+  .cardTitle {
+    font-size: 1rem;
+  }
+
+  .filterBar {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .filterBar > * {
+    width: 100% !important;
+    min-width: unset !important;
+    flex: unset !important;
+  }
+
+  .logsFilterBar {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .logsDateRow {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .formGridTwo {
+    grid-template-columns: 1fr;
+  }
+
+  .table th,
+  .table td {
+    padding: 10px 12px;
+    font-size: 0.8rem;
+  }
+
+  .thumbnail {
+    width: 48px;
+    height: 48px;
+  }
+
+  .badge {
+    font-size: 0.68rem;
+    padding: 3px 6px;
+  }
+
+  .modalContent {
+    max-width: 92%;
+    padding: 18px;
+    border-radius: 14px;
+  }
+
+  .photoUploaderContainer {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .actionsCell {
+    flex-direction: column;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .statsGrid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .statValue {
+    font-size: 1.3rem;
+  }
+
+  .headerTitle {
+    font-size: 1.2rem;
+  }
+
+  .mainContainer {
+    padding: 72px 12px 20px 12px;
+  }
 }
 
 /* Photo Uploader Styling */

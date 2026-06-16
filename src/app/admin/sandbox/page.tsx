@@ -3,10 +3,11 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { 
-  Users, MapPin, Send, PlusCircle, ArrowLeft,
+  Users, MapPin, Send, PlusCircle, ArrowLeft, CheckCircle, XCircle,
   Smartphone, Sparkles, MessageCircle, ExternalLink, ShieldAlert, CalendarDays
 } from "lucide-react";
 import AuthGate from "@/components/AuthGate";
+import Sidebar from "@/components/Sidebar";
 import adminStyles from "../admin.module.css";
 import styles from "./sandbox.module.css";
 
@@ -163,35 +164,10 @@ export default function WhatsAppSandbox() {
     <AuthGate>
       <div className={adminStyles.adminLayout} style={{ overflow: "hidden" }}>
       {/* Sidebar Navigation */}
-      <aside className={adminStyles.sidebar}>
-        <div className={adminStyles.brand}>
-          <Sparkles className={adminStyles.brandIcon} size={22} />
-          <span className="glow-text-purple">SmartOffice</span>
-        </div>
-        <nav className={adminStyles.navMenu}>
-          <Link href="/admin" className={adminStyles.navLink}>
-            <MapPin size={18} /> Dashboard
-          </Link>
-          <Link href="/admin/attendance" className={adminStyles.navLink}>
-            <CalendarDays size={18} /> Check Attendance
-          </Link>
-          <Link href="/admin/employees" className={adminStyles.navLink}>
-            <Users size={18} /> Employee Registry
-          </Link>
-          <Link href="/admin/sandbox" className={`${adminStyles.navLink} ${adminStyles.navLinkActive}`}>
-            <MessageCircle size={18} /> WhatsApp Sandbox
-          </Link>
-        </nav>
-        <div className={adminStyles.sidebarFooter}>
-          <div className={adminStyles.statusIndicator}>
-            <div className={`${adminStyles.statusDot} ${adminStyles.statusDotPulse}`} />
-            <span>Mock Sandbox Active</span>
-          </div>
-        </div>
-      </aside>
+      <Sidebar activeKey="sandbox" onCompanyChange={(id) => setSelectedCompanyId(id)} />
 
       {/* WhatsApp Layout Container */}
-      <main className={styles.sandboxContainer} style={{ marginLeft: "260px", flex: 1 }}>
+      <main className={styles.sandboxContainer}>
         {/* Simulator Control Pane */}
         <div className={styles.chatListPane}>
           <div className={styles.paneHeader}>

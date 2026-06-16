@@ -3,10 +3,11 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { 
-  Users, MapPin, CheckCircle, AlertTriangle, ShieldAlert,
+  Users, MapPin, CheckCircle, XCircle, AlertTriangle, ShieldAlert,
   Settings, Image, Search, Filter, Download, ExternalLink, Menu, Sparkles, CalendarDays
 } from "lucide-react";
 import AuthGate from "@/components/AuthGate";
+import Sidebar from "@/components/Sidebar";
 import styles from "./admin.module.css";
 
 interface Record {
@@ -20,9 +21,43 @@ interface Record {
   distanceFromOffice: number;
   status: string;
   checkInTime: string;
+  checkoutTime?: string | null;
+  workHours?: string | null;
   timezone: string;
   deviceInfo: string;
+  festival?: string | null;
 }
+
+const formatDateToDDMMYYYY = (dateInput: string | Date | null | undefined) => {
+  if (!dateInput) return "-";
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return "-";
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+const formatDateTimeToDDMMYYYY = (dateInput: string | Date | null | undefined) => {
+  if (!dateInput) return "-";
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return "-";
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  
+  let tempHours = date.getHours();
+  const ampm = tempHours >= 12 ? "PM" : "AM";
+  tempHours = tempHours % 12;
+  tempHours = tempHours ? tempHours : 12;
+  const hourStr = String(tempHours).padStart(2, "0");
+  const minStr = String(minutes).padStart(2, "0");
+  
+  return `${day}/${month}/${year} ${hourStr}:${minStr} ${ampm}`;
+};
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
@@ -116,7 +151,8 @@ export default function AdminDashboard() {
         search,
         status: statusFilter,
         startDate,
-        endDate
+        endDate,
+        type: "check-in"
       });
       const res = await fetch(`/api/admin/records?${query.toString()}`, { headers: selectedCompanyHeaders });
       const data = await res.json();
@@ -260,15 +296,18 @@ export default function AdminDashboard() {
   const exportToCSV = () => {
     if (records.length === 0) return;
     
-    const headers = ["Employee ID", "Employee Name", "Date/Time", "Latitude", "Longitude", "Distance (m)", "Status", "Device"];
+    const headers = ["Employee ID", "Employee Name", "Date/Time (Check-In)", "Checkout Time", "Work Hours", "Latitude", "Longitude", "Distance (m)", "Status", "Festival", "Device"];
     const rows = records.map(r => [
       r.employeeId,
       r.employeeName,
-      new Date(r.checkInTime).toLocaleString(),
+      formatDateTimeToDDMMYYYY(r.checkInTime),
+      r.checkoutTime ? formatDateTimeToDDMMYYYY(r.checkoutTime) : "-",
+      r.workHours || "-",
       r.latitude,
       r.longitude,
       Math.round(r.distanceFromOffice),
       r.status,
+      r.festival || "-",
       r.deviceInfo.replace(/,/g, " ")
     ]);
 
@@ -287,32 +326,7 @@ export default function AdminDashboard() {
     <AuthGate>
       <div className={styles.adminLayout}>
       {/* Sidebar Navigation */}
-      <aside className={styles.sidebar}>
-        <div className={styles.brand}>
-          <Sparkles className={styles.brandIcon} size={22} />
-          <span className="glow-text-purple">SmartOffice</span>
-        </div>
-        <nav className={styles.navMenu}>
-          <Link href="/admin" className={`${styles.navLink} ${styles.navLinkActive}`}>
-            <MapPin size={18} /> Dashboard
-          </Link>
-          <Link href="/admin/attendance" className={styles.navLink}>
-            <CalendarDays size={18} /> Check Attendance
-          </Link>
-          <Link href="/admin/employees" className={styles.navLink}>
-            <Users size={18} /> Employee Registry
-          </Link>
-          <Link href="/admin/sandbox" className={styles.navLink}>
-            <Menu size={18} /> WhatsApp Sandbox
-          </Link>
-        </nav>
-        <div className={styles.sidebarFooter}>
-          <div className={styles.statusIndicator}>
-            <div className={`${styles.statusDot} ${styles.statusDotPulse}`} />
-            <span>Mock Sandbox Active</span>
-          </div>
-        </div>
-      </aside>
+      <Sidebar activeKey="dashboard" onCompanyChange={(id) => setSelectedCompanyId(id)} />
 
       {/* Main Content */}
       <main className={styles.mainContainer}>
@@ -433,18 +447,72 @@ export default function AdminDashboard() {
               <option value="outside_radius">Outside Radius</option>
             </select>
             <div className={styles.logsDateRow}>
-              <input 
-                type="date" 
-                className="form-input" 
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-              <input 
-                type="date" 
-                className="form-input" 
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
+              <div style={{ position: "relative", flex: 1 }}>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  style={{ width: "100%", cursor: "pointer" }}
+                  value={formatDateToDDMMYYYY(startDate)}
+                  readOnly
+                  onClick={(e) => {
+                    const dateInput = e.currentTarget.nextElementSibling as HTMLInputElement;
+                    if (dateInput) {
+                      try {
+                        dateInput.showPicker();
+                      } catch (err) {
+                        dateInput.focus();
+                      }
+                    }
+                  }}
+                />
+                <input 
+                  type="date" 
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    opacity: 0,
+                    zIndex: -1,
+                  }}
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div style={{ position: "relative", flex: 1 }}>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  style={{ width: "100%", cursor: "pointer" }}
+                  value={formatDateToDDMMYYYY(endDate)}
+                  readOnly
+                  onClick={(e) => {
+                    const dateInput = e.currentTarget.nextElementSibling as HTMLInputElement;
+                    if (dateInput) {
+                      try {
+                        dateInput.showPicker();
+                      } catch (err) {
+                        dateInput.focus();
+                      }
+                    }
+                  }}
+                />
+                <input 
+                  type="date" 
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    opacity: 0,
+                    zIndex: -1,
+                  }}
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
             </div>
           </div>
 
@@ -462,8 +530,11 @@ export default function AdminDashboard() {
                     <th>ID</th>
                     <th>Employee Name</th>
                     <th>Check-In Time</th>
+                    <th>Checkout Time</th>
+                    <th>Work Hours</th>
                     <th>Distance</th>
                     <th>Status</th>
+                    <th>Festival</th>
                     <th>Device Info</th>
                   </tr>
                 </thead>
@@ -481,10 +552,25 @@ export default function AdminDashboard() {
                       <td style={{ fontWeight: 600 }}>{rec.employeeId}</td>
                       <td>{rec.employeeName}</td>
                       <td>
-                        {new Date(rec.checkInTime).toLocaleDateString("en-IN", { day: '2-digit', month: 'short' })}{" "}
+                        {formatDateToDDMMYYYY(rec.checkInTime)}{" "}
                         <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>
                           {new Date(rec.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
+                      </td>
+                      <td>
+                        {rec.checkoutTime ? (
+                          <>
+                            {formatDateToDDMMYYYY(rec.checkoutTime)}{" "}
+                            <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>
+                              {new Date(rec.checkoutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </>
+                        ) : (
+                          <span style={{ color: "var(--text-secondary)" }}>-</span>
+                        )}
+                      </td>
+                      <td style={{ fontWeight: rec.workHours ? 600 : 400, color: rec.workHours ? "var(--color-success)" : "inherit" }}>
+                        {rec.workHours || "-"}
                       </td>
                       <td>{Math.round(rec.distanceFromOffice)}m</td>
                       <td>
@@ -493,6 +579,17 @@ export default function AdminDashboard() {
                         }`}>
                           {rec.status === "present" ? "Present" : "Outside Radius"}
                         </span>
+                      </td>
+                      <td>
+                        {rec.festival ? (
+                          <span style={{ color: "var(--color-danger)", fontWeight: "bold", fontSize: "0.85rem" }}>
+                            Festival Day Login ({rec.festival})
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+                            -
+                          </span>
+                        )}
                       </td>
                       <td style={{ fontSize: "0.75rem", color: "var(--text-secondary)", maxWidth: "160px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={rec.deviceInfo}>
                         {rec.deviceInfo}

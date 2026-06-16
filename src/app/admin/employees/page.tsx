@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { 
   Users, MapPin, Plus, Edit, Trash2, X, 
-  Search, CheckCircle, ShieldAlert, Sparkles, Loader2, CalendarDays
+  Search, CheckCircle, XCircle, ShieldAlert, Sparkles, Loader2, CalendarDays
 } from "lucide-react";
 import AuthGate from "@/components/AuthGate";
+import Sidebar from "@/components/Sidebar";
 import styles from "../admin.module.css";
 
 interface Company {
@@ -268,32 +269,7 @@ export default function EmployeeRegistry() {
     <AuthGate>
       <div className={styles.adminLayout}>
       {/* Sidebar Navigation */}
-      <aside className={styles.sidebar}>
-        <div className={styles.brand}>
-          <Sparkles className={styles.brandIcon} size={22} />
-          <span className="glow-text-purple">SmartOffice</span>
-        </div>
-        <nav className={styles.navMenu}>
-          <Link href="/admin" className={styles.navLink}>
-            <MapPin size={18} /> Dashboard
-          </Link>
-          <Link href="/admin/attendance" className={styles.navLink}>
-            <CalendarDays size={18} /> Check Attendance
-          </Link>
-          <Link href="/admin/employees" className={`${styles.navLink} ${styles.navLinkActive}`}>
-            <Users size={18} /> Employee Registry
-          </Link>
-          <Link href="/admin/sandbox" className={styles.navLink}>
-            <Plus size={18} /> WhatsApp Sandbox
-          </Link>
-        </nav>
-        <div className={styles.sidebarFooter}>
-          <div className={styles.statusIndicator}>
-            <div className={`${styles.statusDot} ${styles.statusDotPulse}`} />
-            <span>Mock Sandbox Active</span>
-          </div>
-        </div>
-      </aside>
+      <Sidebar activeKey="employees" onCompanyChange={(id) => setSelectedCompanyId(id)} />
 
       {/* Main Content */}
       <main className={styles.mainContainer}>

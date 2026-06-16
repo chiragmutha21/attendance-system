@@ -52,7 +52,11 @@ export async function ensureAuthUser(email: string): Promise<string> {
   return created.id;
 }
 
+let defaultCompanyEnsured = false;
+
 export async function ensureDefaultCompany() {
+  if (defaultCompanyEnsured) return;
+  defaultCompanyEnsured = true; // Mark as resolved/attempted immediately to avoid retrying on every request
   try {
     const authUserId = await ensureAuthUser("admin@example.com");
 
@@ -68,7 +72,7 @@ export async function ensureDefaultCompany() {
       },
     });
 
-    const company = await db.company.upsert({
+    await db.company.upsert({
       where: { id: DEFAULT_COMPANY_ID },
       update: { adminAuthId: admin.id },
       create: {
@@ -87,31 +91,8 @@ export async function ensureDefaultCompany() {
         officeRadiusMeters: defaultOfficeConfig.radius,
       },
     });
-
-    return company;
   } catch (err) {
-    console.warn("Skipping default admin user seed due to database constraints:", err);
-    
-    const company = await db.company.upsert({
-      where: { id: DEFAULT_COMPANY_ID },
-      update: {},
-      create: {
-        id: DEFAULT_COMPANY_ID,
-        name: "Demo Company",
-        adminName: "Admin",
-        adminEmail: "admin@example.com",
-        adminPhone: "+919999999999",
-        countryCode: "+91",
-        employeeLimit: 25,
-        subscription: "trial",
-        status: "active",
-        officeLatitude: defaultOfficeConfig.latitude,
-        officeLongitude: defaultOfficeConfig.longitude,
-        officeRadiusMeters: defaultOfficeConfig.radius,
-      },
-    });
-    
-    return company;
+    console.warn("Skipping default admin user seed due to database constraints or network:", err);
   }
 }
 
@@ -119,24 +100,30 @@ export async function getCompanyIdFromRequest(request: Request) {
   await ensureDefaultCompany();
 
   const headerCompanyId = request.headers.get("x-company-id")?.trim();
+  console.log(`[getCompanyIdFromRequest] header x-company-id: "${headerCompanyId}"`);
   if (headerCompanyId) {
     const company = await db.company.findUnique({
       where: { id: headerCompanyId },
-      select: { id: true },
+      select: { id: true, name: true },
     });
 
     if (company) {
+      console.log(`[getCompanyIdFromRequest] Resolved via header to: ${company.name} (${company.id})`);
       return company.id;
+    } else {
+      console.log(`[getCompanyIdFromRequest] Header company ID not found in database.`);
     }
   }
 
   const firstCompany = await db.company.findFirst({
     where: { status: "active" },
     orderBy: { createdAt: "asc" },
-    select: { id: true },
+    select: { id: true, name: true },
   });
 
-  return firstCompany?.id || DEFAULT_COMPANY_ID;
+  const resolved = firstCompany?.id || DEFAULT_COMPANY_ID;
+  console.log(`[getCompanyIdFromRequest] Fallback to: ${firstCompany?.name || "DEFAULT"} (${resolved})`);
+  return resolved;
 }
 
 export async function getOfficeConfig(companyId: string) {
