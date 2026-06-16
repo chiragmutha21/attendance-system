@@ -15,7 +15,11 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.getUser(token);
 
     if (error || !data.user?.email) {
-      return NextResponse.json({ error: "Invalid auth token" }, { status: 401 });
+      console.error("Supabase token verification failed in /api/auth/profile:", error);
+      return NextResponse.json({ 
+        error: "Invalid auth token", 
+        details: error?.message || "No user email found" 
+      }, { status: 401 });
     }
 
     const email = data.user.email.toLowerCase();

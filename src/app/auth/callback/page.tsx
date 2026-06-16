@@ -38,7 +38,8 @@ function AuthCallbackContent() {
       const profile = await res.json();
 
       if (!res.ok) {
-        setMessage(profile.error || "Unable to resolve account.");
+        const details = profile.details ? ` (${profile.details})` : "";
+        setMessage(`${profile.error || "Unable to resolve account."}${details}`);
         return;
       }
 

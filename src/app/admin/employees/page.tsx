@@ -9,6 +9,7 @@ import {
 import AuthGate from "@/components/AuthGate";
 import Sidebar from "@/components/Sidebar";
 import styles from "../admin.module.css";
+import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 
 interface Company {
   id: string;
@@ -97,7 +98,12 @@ export default function EmployeeRegistry() {
 
   const fetchCompanies = async () => {
     try {
-      const res = await fetch("/api/admin/companies");
+      const supabase = getSupabaseBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const res = await fetch("/api/admin/companies", {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
       const data = await res.json();
       if (data.success) {
         setCompanies(data.companies);

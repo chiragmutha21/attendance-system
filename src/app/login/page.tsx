@@ -31,7 +31,7 @@ function LoginContent() {
 
     const supabase = getSupabaseBrowserClient();
     const next = searchParams.get("next") || "";
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || window.location.origin).replace(/\/$/, "");
+    const appUrl = window.location.origin.replace(/\/$/, "");
     const redirectTo = `${appUrl}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ""}`;
 
     const { error: signInError } = await supabase.auth.signInWithOAuth({

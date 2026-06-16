@@ -2,18 +2,80 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { companySchema, formatZodError } from "@/lib/validation";
 import { DEFAULT_COMPANY_ID, companySettingKey, ensureDefaultCompany, ensureAuthUser } from "@/lib/tenant";
+import { cookies } from "next/headers";
+import jwt, { type JwtPayload } from "jsonwebtoken";
+import { getSupabaseServerClient } from "@/lib/supabaseServer";
 
-export async function GET() {
+async function isSuperAdminRequest() {
+  const token = (await cookies()).get("super_admin_session")?.value || "";
+  if (!token) return false;
+  try {
+    const secret = process.env.JWT_SECRET || "local-super-admin-secret";
+    const payload = jwt.verify(token, secret) as JwtPayload;
+    return payload.role === "SUPER_ADMIN";
+  } catch {
+    return false;
+  }
+}
+
+export async function GET(request: Request) {
   try {
     await ensureDefaultCompany();
-    const companies = await db.company.findMany({
-      include: {
-        _count: {
-          select: { employees: true },
+
+    const isSuperAdmin = await isSuperAdminRequest();
+
+    if (isSuperAdmin) {
+      const companies = await db.company.findMany({
+        include: {
+          _count: {
+            select: { employees: true },
+          },
         },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+        orderBy: { createdAt: "asc" },
+      });
+      return NextResponse.json({ success: true, companies });
+    }
+
+    const authHeader = request.headers.get("authorization") || "";
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+
+    if (!token) {
+      return NextResponse.json({ success: true, companies: [] });
+    }
+
+    const supabase = getSupabaseServerClient();
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (error || !data.user?.email) {
+      return NextResponse.json({ error: "Invalid auth token" }, { status: 401 });
+    }
+
+    const email = data.user.email.toLowerCase();
+    const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL || "").toLowerCase();
+
+    let companies;
+    if (email === superAdminEmail) {
+      companies = await db.company.findMany({
+        include: {
+          _count: {
+            select: { employees: true },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+    } else {
+      companies = await db.company.findMany({
+        where: {
+          adminEmail: email,
+        },
+        include: {
+          _count: {
+            select: { employees: true },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+    }
 
     return NextResponse.json({ success: true, companies });
   } catch (error: any) {
@@ -49,9 +111,14 @@ export async function POST(request: Request) {
     const authUserId = await ensureAuthUser(adminEmail);
 
     const company = await db.$transaction(async (tx) => {
+      const count = await tx.company.count();
+      const nextNum = count + 1;
+      const companyCode = String(nextNum).padStart(2, "0");
+
       const createdCompany = await tx.company.create({
         data: {
           name,
+          companyCode,
           adminName,
           adminEmail: adminEmail.toLowerCase(),
           adminPhone,

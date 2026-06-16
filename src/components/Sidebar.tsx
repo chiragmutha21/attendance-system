@@ -9,6 +9,7 @@ import {
   ShieldCheck, Building2
 } from "lucide-react";
 import styles from "../app/admin/admin.module.css";
+import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 
 interface Company {
   id: string;
@@ -31,7 +32,12 @@ export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: Si
     if (isSuperAdmin) return; // Super Admin doesn't need company selector
     const fetchCompanies = async () => {
       try {
-        const res = await fetch("/api/admin/companies");
+        const supabase = getSupabaseBrowserClient();
+        const { data: { session } } = await supabase.auth.getSession();
+
+        const res = await fetch("/api/admin/companies", {
+          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        });
         const data = await res.json();
         if (data.success) {
           setCompanies(data.companies);

@@ -17,7 +17,11 @@ export async function POST(request: Request) {
     const { data, error } = await supabase.auth.getUser(token);
 
     if (error || !data.user?.email) {
-      return NextResponse.json({ error: "Invalid auth token" }, { status: 401 });
+      console.error("Supabase token verification failed in /api/auth/onboarding:", error);
+      return NextResponse.json({ 
+        error: "Invalid auth token", 
+        details: error?.message || "No user email found" 
+      }, { status: 401 });
     }
 
     const email = data.user.email.toLowerCase();
@@ -55,9 +59,14 @@ export async function POST(request: Request) {
     } = parsed.data;
 
     const company = await db.$transaction(async (tx) => {
+      const count = await tx.company.count();
+      const nextNum = count + 1;
+      const companyCode = String(nextNum).padStart(2, "0");
+
       const createdCompany = await tx.company.create({
         data: {
           name,
+          companyCode,
           adminName,
           adminEmail: adminEmail.toLowerCase(),
           adminPhone,

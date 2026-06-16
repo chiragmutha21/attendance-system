@@ -5,6 +5,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const phone = searchParams.get("phone");
+    const companyId = searchParams.get("companyId");
 
     if (!phone) {
       return NextResponse.json({ error: "Mobile number is required" }, { status: 400 });
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
       where: {
         mobileNumber: cleanPhone,
         status: "active",
+        ...(companyId ? { companyId } : {}),
       },
     });
 

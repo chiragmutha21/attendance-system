@@ -514,6 +514,7 @@ model AdminUser {
 model Company {
   id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name                 String             @map("company_name")
+  companyCode          String?            @unique @map("company_code")
   adminAuthId          String?            @map("admin_auth_id") @db.Uuid
   adminName            String             @map("admin_name")
   adminEmail           String             @map("admin_email")
