@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useParams } from "next/navigation";
 import { Camera, MapPin, CheckCircle, XCircle, RefreshCw, Loader2, Sparkles, PhoneCall } from "lucide-react";
 import styles from "@/app/attendance/[token]/attendance.module.css";
 
@@ -14,10 +15,15 @@ interface Employee {
 }
 
 export default function CheckOutPage() {
+  const params = useParams();
+  const companyCode = params?.companyCode as string;
+
   const [mobileNumber, setMobileNumber] = useState("");
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [phoneVerifying, setPhoneVerifying] = useState(false);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [company, setCompany] = useState<any | null>(null);
+  const [resolvingCompany, setResolvingCompany] = useState(false);
 
   // Verification & Loading States
   const [loading, setLoading] = useState(false);
@@ -124,7 +130,7 @@ export default function CheckOutPage() {
     }, 1000);
 
     const timeout = window.setTimeout(() => {
-      window.location.href = "/checkout";
+      window.location.href = window.location.pathname;
     }, 3000);
 
     return () => {
@@ -146,7 +152,8 @@ export default function CheckOutPage() {
     }
 
     try {
-      const res = await fetch(`/api/attendance/fixed/verify-phone?phone=${encodeURIComponent(mobileNumber)}`);
+      const companyIdParam = company ? `&companyId=${encodeURIComponent(company.id)}` : "";
+      const res = await fetch(`/api/attendance/fixed/verify-phone?phone=${encodeURIComponent(mobileNumber)}${companyIdParam}`);
       const data = await res.json();
 
       if (!res.ok) {
@@ -488,6 +495,81 @@ export default function CheckOutPage() {
     }
   };
 
+  const resolveCompany = async (code: string) => {
+    setResolvingCompany(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`/api/admin/companies/resolve?code=${encodeURIComponent(code)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMsg(data.error || "Failed to resolve company details.");
+      } else {
+        setCompany(data.company);
+      }
+    } catch (err) {
+      console.error("Resolve company error:", err);
+      setErrorMsg("Network error. Failed to resolve company.");
+    } finally {
+      setResolvingCompany(false);
+    }
+  };
+
+  useEffect(() => {
+    if (companyCode) {
+      resolveCompany(companyCode);
+    }
+  }, [companyCode]);
+
+  // Auto-verify if phone number is provided in query params
+  useEffect(() => {
+    if (companyCode && !company && !errorMsg) return;
+
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const phoneParam = urlParams.get("phone");
+      if (phoneParam) {
+        const cleanPhone = phoneParam.replace(/\D/g, "");
+        const formattedPhone = cleanPhone.length > 10 ? cleanPhone.slice(-10) : cleanPhone;
+        setMobileNumber(formattedPhone);
+
+        const autoVerify = async () => {
+          setPhoneError(null);
+          setPhoneVerifying(true);
+          try {
+            const companyIdParam = company ? `&companyId=${encodeURIComponent(company.id)}` : "";
+            const res = await fetch(`/api/attendance/fixed/verify-phone?phone=${encodeURIComponent(phoneParam)}${companyIdParam}`);
+            const data = await res.json();
+
+            if (!res.ok) {
+              setPhoneError(data.error || "Phone verification failed.");
+            } else {
+              if (!data.employee.registeredFaceImage) {
+                setPhoneError("Face Verification Not Configured: No registered profile photo found. Please ask your administrator to upload a photo.");
+                return;
+              }
+              setEmployee(data.employee);
+              setPhoneVerified(true);
+              
+              // Start GPS and Camera once verified
+              requestGPS();
+              initCamera();
+            }
+          } catch (err) {
+            console.error("Auto-verification error:", err);
+            setPhoneError("Network error. Failed to verify employee.");
+          } finally {
+            setPhoneVerifying(false);
+          }
+        };
+
+        const timer = setTimeout(() => {
+          autoVerify();
+        }, 100);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [companyCode, company, errorMsg]);
+
   // --- Render Functions ---
 
   // 1. Phone number Verification Form (Shown first)
@@ -502,7 +584,9 @@ export default function CheckOutPage() {
             <span className="glow-text-cyan">SMART OFFICE</span>
           </div>
           <div className={styles.header}>
-            <h1 className={styles.title}>Check-Out Portal</h1>
+            <h1 className={styles.title}>
+              {company ? `${company.name} Check-Out` : "Check-Out Portal"}
+            </h1>
             <p className={styles.subtitle}>Enter your registered WhatsApp number to verify</p>
           </div>
 
@@ -562,7 +646,7 @@ export default function CheckOutPage() {
   }
 
   // 2. Initial Page Loading
-  if (loading) {
+  if (loading || resolvingCompany) {
     return (
       <div className={styles.container}>
         <div className={`${styles.card} glass-panel flex-center`} style={{ flexDirection: "column", gap: "16px" }}>
@@ -662,7 +746,9 @@ export default function CheckOutPage() {
         </div>
 
         <div className={styles.header}>
-          <h1 className={styles.title}>Mark Check-Out</h1>
+          <h1 className={styles.title}>
+            {company ? `Mark Check-Out (${company.name})` : "Mark Check-Out"}
+          </h1>
           <p className={styles.subtitle}>Selfie & Location Verification Required</p>
         </div>
 

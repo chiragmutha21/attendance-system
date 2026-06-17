@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  Users, MapPin, CheckCircle, XCircle, 
+import {
+  Users, MapPin, CheckCircle, XCircle,
   Sparkles, CalendarDays, Gift, Menu, X,
-  ShieldCheck, Building2
+  ShieldCheck, Building2, KeyRound
 } from "lucide-react";
 import styles from "../app/admin/admin.module.css";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
@@ -18,7 +18,7 @@ interface Company {
 }
 
 interface SidebarProps {
-  activeKey: "dashboard" | "checkin" | "checkout" | "attendance" | "employees" | "sandbox" | "festivals" | "superadmin" | "company-admin";
+  activeKey: "dashboard" | "checkin" | "checkout" | "attendance" | "employees" | "sandbox" | "festivals" | "superadmin" | "company-admin" | "credentials";
   onCompanyChange?: (companyId: string) => void;
   isSuperAdmin?: boolean;
 }
@@ -94,6 +94,7 @@ export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: Si
     { key: "attendance", href: "/admin/attendance", icon: <CalendarDays size={18} />, label: "Check Attendance" },
     { key: "employees", href: "/admin/employees", icon: <Users size={18} />, label: "Employee Registry" },
     { key: "festivals", href: "/admin/festivals", icon: <Gift size={18} />, label: "Festivals" },
+    { key: "credentials", href: "/admin/credentials", icon: <KeyRound size={18} />, label: "Credentials" },
   ];
 
   const superAdminLinks = [

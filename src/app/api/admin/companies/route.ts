@@ -51,31 +51,18 @@ export async function GET(request: Request) {
     }
 
     const email = data.user.email.toLowerCase();
-    const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL || "").toLowerCase();
 
-    let companies;
-    if (email === superAdminEmail) {
-      companies = await db.company.findMany({
-        include: {
-          _count: {
-            select: { employees: true },
-          },
+    const companies = await db.company.findMany({
+      where: {
+        adminEmail: email,
+      },
+      include: {
+        _count: {
+          select: { employees: true },
         },
-        orderBy: { createdAt: "asc" },
-      });
-    } else {
-      companies = await db.company.findMany({
-        where: {
-          adminEmail: email,
-        },
-        include: {
-          _count: {
-            select: { employees: true },
-          },
-        },
-        orderBy: { createdAt: "asc" },
-      });
-    }
+      },
+      orderBy: { createdAt: "asc" },
+    });
 
     return NextResponse.json({ success: true, companies });
   } catch (error: any) {

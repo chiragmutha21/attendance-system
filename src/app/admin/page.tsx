@@ -79,6 +79,7 @@ export default function AdminDashboard() {
     radius: 200,
   });
   const [configSaving, setConfigSaving] = useState(false);
+  const [locating, setLocating] = useState(false);
 
   // Modal for Selfie View
   const [activeSelfie, setActiveSelfie] = useState<string | null>(null);
@@ -209,6 +210,34 @@ export default function AdminDashboard() {
     } finally {
       setConfigSaving(false);
     }
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setOfficeConfig((prev) => ({
+          ...prev,
+          latitude: parseFloat(position.coords.latitude.toFixed(6)),
+          longitude: parseFloat(position.coords.longitude.toFixed(6)),
+        }));
+        setLocating(false);
+      },
+      (error) => {
+        console.error("Error getting location:", error);
+        alert(`Failed to retrieve location: ${error.message}`);
+        setLocating(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
   };
 
   // Initialize Map
@@ -383,33 +412,47 @@ export default function AdminDashboard() {
               <Settings size={16} color="var(--text-secondary)" />
             </div>
             <form onSubmit={saveOfficeConfig} className={styles.settingsForm}>
-              <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Office Latitude</label>
-                <input 
-                  type="number" 
-                  step="0.000001"
-                  className="form-input" 
-                  value={officeConfig.latitude} 
-                  onChange={(e) => setOfficeConfig({...officeConfig, latitude: parseFloat(e.target.value)})}
-                />
+              <div className={styles.formGridTwo}>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Office Latitude</label>
+                  <input 
+                    type="number" 
+                    step="0.000001"
+                    className="form-input" 
+                    value={officeConfig.latitude} 
+                    onChange={(e) => setOfficeConfig({...officeConfig, latitude: parseFloat(e.target.value) || 0})}
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Office Longitude</label>
+                  <input 
+                    type="number" 
+                    step="0.000001"
+                    className="form-input" 
+                    value={officeConfig.longitude} 
+                    onChange={(e) => setOfficeConfig({...officeConfig, longitude: parseFloat(e.target.value) || 0})}
+                  />
+                </div>
               </div>
-              <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Office Longitude</label>
-                <input 
-                  type="number" 
-                  step="0.000001"
-                  className="form-input" 
-                  value={officeConfig.longitude} 
-                  onChange={(e) => setOfficeConfig({...officeConfig, longitude: parseFloat(e.target.value)})}
-                />
-              </div>
+              
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                disabled={locating}
+                className="btn btn-outline"
+                style={{ width: "100%", padding: "10px" }}
+              >
+                <MapPin size={16} />
+                {locating ? "Fetching Location..." : "Use My Current Location"}
+              </button>
+
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Allowed Radius (Meters)</label>
                 <input 
                   type="number" 
                   className="form-input" 
                   value={officeConfig.radius} 
-                  onChange={(e) => setOfficeConfig({...officeConfig, radius: parseInt(e.target.value)})}
+                  onChange={(e) => setOfficeConfig({...officeConfig, radius: parseInt(e.target.value) || 0})}
                 />
               </div>
               <button type="submit" disabled={configSaving} className="btn btn-secondary" style={{ marginTop: "8px" }}>
