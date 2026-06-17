@@ -106,7 +106,7 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !selectedCompanyId) return;
     fetchDashboardData();
     fetchOfficeConfig();
     fetchEmployeesCount();

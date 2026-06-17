@@ -498,7 +498,7 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-light);
-  z-index: 200;
+  z-index: 1500;
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
@@ -542,7 +542,7 @@
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  z-index: 250;
+  z-index: 1999;
 }
 
 .sidebarOverlay.sidebarOverlayVisible {
@@ -582,7 +582,7 @@
   .sidebar {
     transform: translateX(-100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    z-index: 300;
+    z-index: 2000;
     width: 280px;
     padding-top: 60px;
   }

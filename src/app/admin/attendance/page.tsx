@@ -159,11 +159,15 @@ export default function CheckAttendancePage() {
   }, []);
 
   useEffect(() => {
-    fetchEmployees();
+    if (selectedCompanyId) {
+      fetchEmployees();
+    }
   }, [selectedCompanyId]);
 
   useEffect(() => {
-    fetchRecords();
+    if (selectedCompanyId) {
+      fetchRecords();
+    }
   }, [selectedCompanyId, selectedEmployeeId, selectedRange.startDate, selectedRange.endDate, search]);
 
   const presentCount = records.filter((record) => record.status === "present").length;
