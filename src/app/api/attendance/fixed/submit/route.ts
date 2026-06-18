@@ -113,6 +113,60 @@ export async function POST(request: Request) {
       console.log(`[PRODUCTION MODE] Saved selfie to Supabase: ${selfieUrl}`);
     }
 
+    // 5.5 Validate session constraints (prevent double check-in, checkout without check-in, etc.)
+    const lastRecord = await db.attendanceRecord.findFirst({
+      where: {
+        employeeId: employee.employeeId,
+        companyId: companyId,
+      },
+      orderBy: {
+        checkInTime: "desc",
+      },
+    });
+
+    const tz = timezone || "Asia/Kolkata";
+    const now = new Date();
+
+    if (type === "check-in") {
+      if (lastRecord && lastRecord.type === "check-in") {
+        let prevDateStr = "";
+        let currentDateStr = "";
+        try {
+          prevDateStr = new Date(lastRecord.checkInTime).toLocaleDateString("en-CA", { timeZone: tz });
+          currentDateStr = now.toLocaleDateString("en-CA", { timeZone: tz });
+        } catch (e) {
+          const fallbackTz = "Asia/Kolkata";
+          prevDateStr = new Date(lastRecord.checkInTime).toLocaleDateString("en-CA", { timeZone: fallbackTz });
+          currentDateStr = now.toLocaleDateString("en-CA", { timeZone: fallbackTz });
+        }
+
+        if (prevDateStr === currentDateStr) {
+          return NextResponse.json({ error: "Already checked in" }, { status: 400 });
+        } else {
+          return NextResponse.json({ error: "Previous session still open" }, { status: 400 });
+        }
+      }
+    } else if (type === "check-out") {
+      if (!lastRecord || lastRecord.type !== "check-in") {
+        return NextResponse.json({ error: "No active check-in found" }, { status: 400 });
+      }
+
+      let prevDateStr = "";
+      let currentDateStr = "";
+      try {
+        prevDateStr = new Date(lastRecord.checkInTime).toLocaleDateString("en-CA", { timeZone: tz });
+        currentDateStr = now.toLocaleDateString("en-CA", { timeZone: tz });
+      } catch (e) {
+        const fallbackTz = "Asia/Kolkata";
+        prevDateStr = new Date(lastRecord.checkInTime).toLocaleDateString("en-CA", { timeZone: fallbackTz });
+        currentDateStr = now.toLocaleDateString("en-CA", { timeZone: fallbackTz });
+      }
+
+      if (prevDateStr !== currentDateStr) {
+        return NextResponse.json({ error: "No active check-in found" }, { status: 400 });
+      }
+    }
+
     // 6. Log Attendance Record
     const record = await db.attendanceRecord.create({
       data: {

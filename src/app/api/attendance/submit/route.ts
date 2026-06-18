@@ -137,6 +137,37 @@ export async function POST(request: Request) {
       console.log(`[PRODUCTION MODE] Saved selfie to EMPLOYEE_SELFIE bucket: ${selfieUrl}`);
     }
 
+    // 6.5 Validate session constraints (prevent double check-in and handle overnight open sessions)
+    const lastRecord = await db.attendanceRecord.findFirst({
+      where: {
+        employeeId: employee.employeeId,
+        companyId: link.companyId,
+      },
+      orderBy: {
+        checkInTime: "desc",
+      },
+    });
+
+    if (lastRecord && lastRecord.type === "check-in") {
+      let tz = timezone || "Asia/Kolkata";
+      let prevDateStr = "";
+      let currentDateStr = "";
+      try {
+        prevDateStr = new Date(lastRecord.checkInTime).toLocaleDateString("en-CA", { timeZone: tz });
+        currentDateStr = new Date().toLocaleDateString("en-CA", { timeZone: tz });
+      } catch (e) {
+        tz = "Asia/Kolkata";
+        prevDateStr = new Date(lastRecord.checkInTime).toLocaleDateString("en-CA", { timeZone: tz });
+        currentDateStr = new Date().toLocaleDateString("en-CA", { timeZone: tz });
+      }
+
+      if (prevDateStr === currentDateStr) {
+        return NextResponse.json({ error: "Already checked in" }, { status: 400 });
+      } else {
+        return NextResponse.json({ error: "Previous session still open" }, { status: 400 });
+      }
+    }
+
     // 7. Perform DB Transaction: Create Attendance Record and flag link as used
     const result = await db.$transaction(
       async (tx) => {

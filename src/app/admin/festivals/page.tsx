@@ -418,6 +418,19 @@ function FestivalsContent() {
                 </button>
               </div>
 
+              <div style={{ 
+                fontSize: "0.82rem", 
+                color: "var(--text-secondary)", 
+                background: "rgba(255, 255, 255, 0.02)", 
+                padding: "12px 16px", 
+                borderRadius: "8px", 
+                borderLeft: "3px solid var(--color-primary)", 
+                marginBottom: "20px",
+                lineHeight: "1.4"
+              }}>
+                ℹ️ <strong>Database Storage Info:</strong> Custom holidays are saved securely in your company database. Employee scans logged on these dates are marked automatically as <strong>"Festival Day Login"</strong> in the records.
+              </div>
+
               {customFestivals.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text-muted)", fontSize: "0.88rem" }}>
                   No custom holidays added. Click "Add Holiday" to create one.
@@ -501,6 +514,39 @@ function FestivalsContent() {
                   ))}
                 </div>
               )}
+
+              {/* Action Buttons inside Custom Holidays Card */}
+              <div style={{ 
+                display: "flex", 
+                justifyContent: "flex-end", 
+                gap: "10px", 
+                marginTop: "24px", 
+                borderTop: "1px solid rgba(255, 255, 255, 0.05)", 
+                paddingTop: "20px" 
+              }}>
+                <button 
+                  type="button" 
+                  className="btn btn-outline" 
+                  onClick={() => {
+                    setIsEditing(false);
+                    fetchFestivals(); // revert
+                  }}
+                  disabled={saving}
+                  style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.88rem" }}
+                >
+                  <X size={14} /> Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary" 
+                  onClick={saveChanges}
+                  disabled={saving}
+                  style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.88rem" }}
+                >
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  Save Holidays
+                </button>
+              </div>
             </div>
           </div>
         )}
