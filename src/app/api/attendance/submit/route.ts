@@ -51,23 +51,60 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // 4. Fetch company-specific office config settings
-    const officeConfig = await getOfficeConfig(link.companyId);
+    // 4. Fetch assigned branches and calculate nearest branch distance
+    const assignedBranchIds = employee.assignedBranchIds || [];
+    let targetBranches = await db.branch.findMany({
+      where: {
+        id: { in: assignedBranchIds },
+        companyId: link.companyId,
+      },
+    });
 
-    // 5. Calculate Distance using Haversine
-    const distance = calculateDistance(
-      latitude,
-      longitude,
-      officeConfig.latitude,
-      officeConfig.longitude
-    );
+    // Fallback if no branches are assigned
+    if (targetBranches.length === 0) {
+      targetBranches = await db.branch.findMany({
+        where: { companyId: link.companyId },
+      });
+      if (targetBranches.length === 0) {
+        const company = await db.company.findUnique({ where: { id: link.companyId } });
+        if (company) {
+          const mainOffice = await db.branch.create({
+            data: {
+              companyId: link.companyId,
+              name: "Head Office",
+              address: "Main Office Address",
+              latitude: company.officeLatitude ?? 28.6139,
+              longitude: company.officeLongitude ?? 77.2090,
+              radiusMeters: company.officeRadiusMeters ?? 200,
+              isMainOffice: true,
+            },
+          });
+          targetBranches = [mainOffice];
+        }
+      }
+    }
 
-    // Reject check-in if GPS coordinate is outside the allowed office radius
-    if (distance > officeConfig.radius) {
+    let nearestBranch = null;
+    let minDistance = Infinity;
+
+    for (const b of targetBranches) {
+      const dist = calculateDistance(latitude, longitude, b.latitude, b.longitude);
+      if (dist < minDistance) {
+        minDistance = dist;
+        nearestBranch = b;
+      }
+    }
+
+    if (!nearestBranch) {
+      return NextResponse.json({ error: "No configured branch found for your company." }, { status: 400 });
+    }
+
+    if (minDistance > nearestBranch.radiusMeters) {
       return NextResponse.json({
-        error: `GPS Verification Failed: You are outside the allowed office boundary. Your distance is ${Math.round(distance)} meters, but you must be within ${officeConfig.radius} meters of the office.`,
-        distance: Math.round(distance),
-        allowedRadius: officeConfig.radius
+        error: `GPS Verification Failed: You are outside the allowed office boundary. Nearest branch is "${nearestBranch.name}" at ${Math.round(minDistance)} meters, but you must be within ${nearestBranch.radiusMeters} meters.`,
+        distance: Math.round(minDistance),
+        allowedRadius: nearestBranch.radiusMeters,
+        branchName: nearestBranch.name,
       }, { status: 400 });
     }
 
@@ -149,23 +186,10 @@ export async function POST(request: Request) {
     });
 
     if (lastRecord && lastRecord.type === "check-in") {
-      let tz = timezone || "Asia/Kolkata";
-      let prevDateStr = "";
-      let currentDateStr = "";
-      try {
-        prevDateStr = new Date(lastRecord.checkInTime).toLocaleDateString("en-CA", { timeZone: tz });
-        currentDateStr = new Date().toLocaleDateString("en-CA", { timeZone: tz });
-      } catch (e) {
-        tz = "Asia/Kolkata";
-        prevDateStr = new Date(lastRecord.checkInTime).toLocaleDateString("en-CA", { timeZone: tz });
-        currentDateStr = new Date().toLocaleDateString("en-CA", { timeZone: tz });
-      }
-
-      if (prevDateStr === currentDateStr) {
-        return NextResponse.json({ error: "Already checked in" }, { status: 400 });
-      } else {
-        return NextResponse.json({ error: "Previous session still open" }, { status: 400 });
-      }
+      return NextResponse.json(
+        { error: "You are already checked in. Please check out before checking in again." },
+        { status: 400 }
+      );
     }
 
     // 7. Perform DB Transaction: Create Attendance Record and flag link as used
@@ -187,10 +211,13 @@ export async function POST(request: Request) {
             latitude: latitude,
             longitude: longitude,
             accuracy: accuracy || 0,
-            distanceFromOffice: distance,
+            distanceFromOffice: minDistance,
             status: "present", // Marked present since within radius
             timezone: timezone || "Asia/Kolkata",
             deviceInfo: deviceInfo || "Unknown Device",
+            branchId: nearestBranch.id,
+            branchName: nearestBranch.name,
+            distanceFromBranch: minDistance,
           },
         });
 
@@ -211,8 +238,8 @@ export async function POST(request: Request) {
       hour: "2-digit",
       minute: "2-digit",
     });
-    const locationStatus = result.status === "present" ? "In Office" : "Outside Office";
-    const confirmationMessage = `Your attendance marked successfully.\n\nLocation: ${locationStatus}\nTime: ${markedTime}`;
+    const locationStatus = result.status === "present" ? `In Office (${result.branchName || "Main Office"})` : "Outside Office";
+    const confirmationMessage = `Your attendance marked successfully.\n\nBranch: ${result.branchName || "Main Office"}\nLocation: In Office\nTime: ${markedTime}`;
     await sendWhatsAppMessage(employee.mobileNumber, confirmationMessage);
 
     return NextResponse.json({

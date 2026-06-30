@@ -55,6 +55,14 @@ export async function POST(request: Request) {
     // Upload image
     const uploadedImageUrl = await uploadFaceImage(companyId, employeeId, registeredFaceImage);
 
+    let branchIds = parsed.data.assignedBranchIds || [];
+    if (branchIds.length === 0) {
+      const firstBranch = await db.branch.findFirst({ where: { companyId } });
+      if (firstBranch) {
+        branchIds = [firstBranch.id];
+      }
+    }
+
     const employee = await db.employee.create({
       data: {
         companyId,
@@ -65,6 +73,7 @@ export async function POST(request: Request) {
         role,
         status,
         registeredFaceImage: uploadedImageUrl,
+        assignedBranchIds: branchIds,
       },
     });
 
@@ -121,6 +130,8 @@ export async function PUT(request: Request) {
       uploadedImageUrl = await uploadFaceImage(companyId, employeeId || existing.employeeId, registeredFaceImage);
     }
 
+    const branchIds = parsed.data.assignedBranchIds;
+
     const updated = await db.employee.update({
       where: { id },
       data: {
@@ -131,6 +142,7 @@ export async function PUT(request: Request) {
         role: role || undefined,
         status: status || undefined,
         registeredFaceImage: uploadedImageUrl || undefined,
+        assignedBranchIds: branchIds !== undefined ? branchIds : undefined,
       },
     });
 

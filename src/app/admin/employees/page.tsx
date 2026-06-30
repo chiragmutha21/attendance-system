@@ -33,6 +33,7 @@ interface Employee {
   status: string;
   registeredFaceImage?: string | null;
   createdAt: string;
+  assignedBranchIds?: string[];
 }
 
 export default function EmployeeRegistry() {
@@ -55,6 +56,8 @@ export default function EmployeeRegistry() {
   const [formRole, setFormRole] = useState("");
   const [formStatus, setFormStatus] = useState("active");
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [branches, setBranches] = useState<any[]>([]);
+  const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
 
   const [companyCountryCode] = useState("+91");
 
@@ -86,6 +89,7 @@ export default function EmployeeRegistry() {
   useEffect(() => {
     if (selectedCompanyId) {
       fetchEmployees();
+      fetchBranches();
     }
   }, [selectedCompanyId]);
 
@@ -136,6 +140,20 @@ export default function EmployeeRegistry() {
     }
   };
 
+  const fetchBranches = async () => {
+    try {
+      const res = await fetch("/api/admin/branches", {
+        headers: { "x-company-id": selectedCompanyId },
+      });
+      const data = await res.json();
+      if (data.success && data.branches) {
+        setBranches(data.branches);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const openAddModal = () => {
     setEditEmployee(null);
     setFormEmployeeId("");
@@ -147,6 +165,7 @@ export default function EmployeeRegistry() {
     setFormImagePreview(null);
     setFormImageBase64(null);
     setFormErrors({});
+    setSelectedBranches(branches.length === 1 ? [branches[0].id] : []);
     setModalOpen(true);
   };
 
@@ -162,6 +181,7 @@ export default function EmployeeRegistry() {
     setFormImagePreview(emp.registeredFaceImage || null);
     setFormImageBase64(null);
     setFormErrors({});
+    setSelectedBranches(emp.assignedBranchIds || []);
     setModalOpen(true);
   };
 
@@ -192,7 +212,10 @@ export default function EmployeeRegistry() {
     if (!editEmployee && !formImageBase64) {
       errors.registeredFaceImage = "An employee face photo is required for registration.";
     }
-
+    if (branches.length > 0 && selectedBranches.length === 0) {
+      errors.branches = "Please assign at least one branch.";
+    }
+ 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -219,6 +242,7 @@ export default function EmployeeRegistry() {
         role: formRole.trim(),
         status: formStatus,
         registeredFaceImage: formImageBase64 || undefined, // only send if a new image has been selected
+        assignedBranchIds: selectedBranches,
       };
 
       const res = await fetch(url, {
@@ -525,6 +549,43 @@ export default function EmployeeRegistry() {
                 />
                 {formErrors.role && <span className={styles.formError}>{formErrors.role}</span>}
               </div>
+
+              {branches.length > 0 && (
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Assigned Branches</label>
+                  {branches.length === 1 ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(255, 255, 255, 0.02)", padding: "12px", borderRadius: "8px", border: "1px solid var(--border-light)", fontSize: "0.95rem" }}>
+                      <span style={{ fontWeight: 600, color: "var(--color-success)" }}>✔</span>
+                      <span>
+                        Automatically assigned: <strong>{branches[0].name}</strong> {branches[0].isMainOffice && <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>(Main)</span>}
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px", background: "rgba(255, 255, 255, 0.02)", padding: "14px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
+                      {branches.map((b) => (
+                        <label key={b.id} style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "0.95rem", userSelect: "none" }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedBranches.includes(b.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedBranches([...selectedBranches, b.id]);
+                              } else {
+                                setSelectedBranches(selectedBranches.filter((id) => id !== b.id));
+                              }
+                            }}
+                            style={{ width: "16px", height: "16px", accentColor: "var(--color-primary)", cursor: "pointer" }}
+                          />
+                          <span>
+                            {b.name} {b.isMainOffice && <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>(Main Office)</span>}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {formErrors.branches && <span className={styles.formError}>{formErrors.branches}</span>}
+                </div>
+              )}
 
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Status</label>

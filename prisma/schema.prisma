@@ -533,6 +533,7 @@ model Company {
   AttendanceLink       AttendanceLink[]
   AttendanceRecord     AttendanceRecord[]
   festivals            Festival[]
+  branches             Branch[]
 
   @@index([adminAuthId], map: "idx_company_admin_auth_id")
   @@map("company_details")
@@ -555,6 +556,7 @@ model Employee {
   updatedAt           DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
   adminUser           AdminUser?      @relation(fields: [addedByAuthId], references: [id], onUpdate: NoAction)
   company             Company         @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  assignedBranchIds   String[]        @default([])
 
   @@unique([companyId, employeeId])
   @@unique([companyId, mobileNumber])
@@ -665,6 +667,9 @@ model AttendanceRecord {
   timezone           String
   deviceInfo         String
   address            String?
+  branchId           String?  @db.Uuid
+  branchName         String?
+  distanceFromBranch Float?
 
   @@index([companyId])
   @@schema("public")
@@ -681,6 +686,24 @@ model Festival {
 
   @@unique([companyId, date])
   @@map("company_festivals")
+  @@schema("public")
+}
+
+model Branch {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String   @map("company_id") @db.Uuid
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  name         String
+  address      String?
+  latitude     Float
+  longitude    Float
+  radiusMeters Int      @default(200)
+  isMainOffice Boolean  @default(false)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([companyId])
+  @@map("company_branches")
   @@schema("public")
 }
 

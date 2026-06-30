@@ -23,6 +23,7 @@ export const employeeSchema = z.object({
   role: z.string().trim().min(2, "Designation is required").max(60, "Designation is too long"),
   status: z.enum(["active", "inactive"]),
   registeredFaceImage: z.string().optional().nullable(),
+  assignedBranchIds: z.array(z.string()).optional(),
 });
 
 export const companySchema = z.object({

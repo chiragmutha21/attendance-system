@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { 
   Users, MapPin, CheckCircle, XCircle, AlertTriangle, ShieldAlert,
-  Settings, Image, Search, Filter, Download, ExternalLink, Menu, Sparkles, CalendarDays
+  Settings, Image, Search, Filter, Download, ExternalLink, Menu, Sparkles, CalendarDays, X, Plus
 } from "lucide-react";
 import AuthGate from "@/components/AuthGate";
 import Sidebar from "@/components/Sidebar";
@@ -26,6 +26,9 @@ interface Record {
   timezone: string;
   deviceInfo: string;
   festival?: string | null;
+  branchId?: string | null;
+  branchName?: string | null;
+  distanceFromBranch?: number | null;
 }
 
 const formatDateToDDMMYYYY = (dateInput: string | Date | null | undefined) => {
@@ -84,6 +87,18 @@ export default function AdminDashboard() {
   // Modal for Selfie View
   const [activeSelfie, setActiveSelfie] = useState<string | null>(null);
 
+  // Branches Config State
+  const [branches, setBranches] = useState<any[]>([]);
+  const [branchModalOpen, setBranchModalOpen] = useState(false);
+  const [editingBranch, setEditingBranch] = useState<any | null>(null);
+  const [branchName, setBranchName] = useState("");
+  const [branchAddress, setBranchAddress] = useState("");
+  const [branchLat, setBranchLat] = useState("");
+  const [branchLng, setBranchLng] = useState("");
+  const [branchRadius, setBranchRadius] = useState("200");
+  const [branchIsMain, setBranchIsMain] = useState(false);
+  const [branchSaving, setBranchSaving] = useState(false);
+
   // Map instance reference
   const mapRef = useRef<any>(null);
   const selectedCompanyHeaders: { [key: string]: string } = selectedCompanyId ? { "x-company-id": selectedCompanyId } : {};
@@ -110,6 +125,7 @@ export default function AdminDashboard() {
     fetchDashboardData();
     fetchOfficeConfig();
     fetchEmployeesCount();
+    fetchBranches();
   }, [mounted, selectedCompanyId, search, statusFilter, startDate, endDate]);
 
   // Load Map when Leaflet scripts are injected and ready
@@ -144,7 +160,7 @@ export default function AdminDashboard() {
         mapRef.current = null;
       }
     };
-  }, [loading, records, officeConfig]);
+  }, [loading, records, officeConfig, branches]);
 
   const fetchDashboardData = async () => {
     try {
@@ -179,6 +195,97 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchBranches = async () => {
+    try {
+      const res = await fetch("/api/admin/branches", { headers: selectedCompanyHeaders });
+      const data = await res.json();
+      if (data.success && data.branches) {
+        setBranches(data.branches);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const openAddBranchModal = () => {
+    setEditingBranch(null);
+    setBranchName("");
+    setBranchAddress("");
+    setBranchLat("");
+    setBranchLng("");
+    setBranchRadius("200");
+    setBranchIsMain(false);
+    setBranchModalOpen(true);
+  };
+
+  const openEditBranchModal = (b: any) => {
+    setEditingBranch(b);
+    setBranchName(b.name);
+    setBranchAddress(b.address || "");
+    setBranchLat(String(b.latitude));
+    setBranchLng(String(b.longitude));
+    setBranchRadius(String(b.radiusMeters));
+    setBranchIsMain(b.isMainOffice);
+    setBranchModalOpen(true);
+  };
+
+  const saveBranch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBranchSaving(true);
+    try {
+      const payload = {
+        id: editingBranch?.id,
+        name: branchName,
+        address: branchAddress,
+        latitude: parseFloat(branchLat) || 0,
+        longitude: parseFloat(branchLng) || 0,
+        radiusMeters: parseInt(branchRadius) || 200,
+        isMainOffice: branchIsMain,
+      };
+
+      const res = await fetch("/api/admin/branches", {
+        method: editingBranch ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json", ...selectedCompanyHeaders },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setBranchModalOpen(false);
+        fetchBranches();
+        if (branchIsMain) {
+          fetchOfficeConfig();
+        }
+      } else {
+        alert(data.error || "Failed to save branch");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save branch");
+    } finally {
+      setBranchSaving(false);
+    }
+  };
+
+  const deleteBranch = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete branch "${name}"?`)) return;
+    try {
+      const res = await fetch(`/api/admin/branches?id=${id}`, {
+        method: "DELETE",
+        headers: selectedCompanyHeaders,
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchBranches();
+      } else {
+        alert(data.error || "Failed to delete branch");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete branch");
+    }
+  };
+
   const fetchEmployeesCount = async () => {
     try {
       const res = await fetch("/api/admin/employees", { headers: selectedCompanyHeaders });
@@ -203,6 +310,7 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (data.success) {
         alert("Office Geofence configuration updated successfully.");
+        fetchBranches();
       }
     } catch (err) {
       console.error(err);
@@ -254,9 +362,10 @@ export default function AdminDashboard() {
     }
 
     const { latitude, longitude, radius } = officeConfig;
+    const mainOfficeBranch = branches.find(b => b.isMainOffice) || { latitude, longitude, radiusMeters: radius };
 
-    // Create Map centered at office
-    const map = L.map("admin-map").setView([latitude, longitude], 15);
+    // Create Map centered at main office
+    const map = L.map("admin-map").setView([mainOfficeBranch.latitude, mainOfficeBranch.longitude], 14);
     mapRef.current = map;
 
     // Add Tile Layer
@@ -266,25 +375,34 @@ export default function AdminDashboard() {
       maxZoom: 20
     }).addTo(map);
 
-    // Office Location Pin & Radius Circle
-    const officeIcon = L.divIcon({
-      html: `<div style="background-color: var(--color-primary); width: 14px; height: 14px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 10px var(--color-primary-glow)"></div>`,
-      className: "custom-office-pin",
-      iconSize: [14, 14],
-      iconAnchor: [7, 7]
+    // Draw all branches
+    branches.forEach((b) => {
+      const isMain = b.isMainOffice;
+      const branchColor = isMain ? "var(--color-primary)" : "#3b82f6";
+      const branchGlow = isMain ? "var(--color-primary-glow)" : "rgba(59, 130, 246, 0.4)";
+
+      const branchIcon = L.divIcon({
+        html: `<div style="background-color: ${branchColor}; width: 14px; height: 14px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 10px ${branchGlow}"></div>`,
+        className: `custom-branch-pin-${b.id}`,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+      });
+
+      const marker = L.marker([b.latitude, b.longitude], { icon: branchIcon })
+        .addTo(map)
+        .bindPopup(`<strong>${b.name}</strong>${isMain ? " (Main Office)" : ""}<br/>${b.address || ""}`);
+
+      if (isMain) {
+        marker.openPopup();
+      }
+
+      L.circle([b.latitude, b.longitude], {
+        color: branchColor,
+        fillColor: branchGlow,
+        fillOpacity: 0.12,
+        radius: b.radiusMeters
+      }).addTo(map);
     });
-
-    L.marker([latitude, longitude], { icon: officeIcon })
-      .addTo(map)
-      .bindPopup("<strong>Headquarters Office</strong>")
-      .openPopup();
-
-    L.circle([latitude, longitude], {
-      color: "var(--color-primary)",
-      fillColor: "var(--color-primary-glow)",
-      fillOpacity: 0.15,
-      radius: radius
-    }).addTo(map);
 
     // Draw employee pins
     records.forEach((rec) => {
@@ -460,6 +578,72 @@ export default function AdminDashboard() {
               </button>
             </form>
           </div>
+
+          {/* Branches Column */}
+          <div className={`${styles.contentCard} glass-panel`}>
+            <div className={styles.cardHeader} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 className={styles.cardTitle}>Company Branches</h2>
+              <button 
+                onClick={openAddBranchModal}
+                className="btn btn-outline" 
+                style={{ padding: "6px 12px", fontSize: "0.8rem", height: "auto", display: "inline-flex", gap: "4px" }}
+              >
+                <Plus size={14} /> Add Branch
+              </button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "16px", maxHeight: "250px", overflowY: "auto" }}>
+              {branches.length === 0 ? (
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", textAlign: "center" }}>No branches configured.</p>
+              ) : (
+                branches.map((b) => (
+                  <div 
+                    key={b.id} 
+                    style={{ 
+                      display: "flex", 
+                      flexDirection: "column", 
+                      gap: "6px", 
+                      padding: "12px", 
+                      borderRadius: "8px", 
+                      background: b.isMainOffice ? "rgba(127, 90, 240, 0.08)" : "rgba(255,255,255,0.02)", 
+                      border: b.isMainOffice ? "1px solid var(--color-primary)" : "1px solid var(--border-light)" 
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#fff" }}>
+                        {b.name} {b.isMainOffice && <span style={{ color: "var(--color-primary)", fontSize: "0.7rem", background: "rgba(127, 90, 240, 0.15)", padding: "2px 6px", borderRadius: "4px", marginLeft: "6px" }}>Main</span>}
+                      </div>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button 
+                          onClick={() => openEditBranchModal(b)} 
+                          style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: "0.75rem", cursor: "pointer" }}
+                        >
+                          Edit
+                        </button>
+                        {!b.isMainOffice && (
+                          <button 
+                            onClick={() => deleteBranch(b.id, b.name)} 
+                            style={{ background: "none", border: "none", color: "var(--color-danger)", fontSize: "0.75rem", cursor: "pointer" }}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {b.address && (
+                      <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                        {b.address}
+                      </div>
+                    )}
+                    <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", display: "flex", gap: "10px" }}>
+                      <span>Lat: {b.latitude.toFixed(5)}</span>
+                      <span>Lng: {b.longitude.toFixed(5)}</span>
+                      <span>Radius: {b.radiusMeters}m</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Records Table Card */}
@@ -615,7 +799,18 @@ export default function AdminDashboard() {
                       <td style={{ fontWeight: rec.workHours ? 600 : 400, color: rec.workHours ? "var(--color-success)" : "inherit" }}>
                         {rec.workHours || "-"}
                       </td>
-                      <td>{Math.round(rec.distanceFromOffice)}m</td>
+                      <td>
+                        {rec.branchName ? (
+                          <span>
+                            {rec.branchName}{" "}
+                            <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>
+                              ({Math.round(rec.distanceFromBranch ?? rec.distanceFromOffice)}m)
+                            </span>
+                          </span>
+                        ) : (
+                          <span>{Math.round(rec.distanceFromOffice)}m</span>
+                        )}
+                      </td>
                       <td>
                         <span className={`${styles.badge} ${
                           rec.status === "present" ? styles.badgePresent : styles.badgeOutside
@@ -655,6 +850,105 @@ export default function AdminDashboard() {
             <a href={activeSelfie} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ display: "inline-flex" }}>
               Open in New Tab <ExternalLink size={14} />
             </a>
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit Branch Modal */}
+      {branchModalOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ textAlign: "left", maxWidth: "480px" }}>
+            <button className={styles.modalClose} onClick={() => setBranchModalOpen(false)}>
+              <X size={20} />
+            </button>
+            <h2 className={styles.stateTitle} style={{ marginBottom: "20px" }}>
+              {editingBranch ? "Edit Branch" : "Add New Branch"}
+            </h2>
+            <form onSubmit={saveBranch} className={styles.settingsForm}>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Branch Name (Required)</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="e.g. Mumbai Office"
+                  required
+                  value={branchName}
+                  onChange={(e) => setBranchName(e.target.value)}
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Address</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="e.g. Bandra Kurla Complex"
+                  value={branchAddress}
+                  onChange={(e) => setBranchAddress(e.target.value)}
+                />
+              </div>
+
+              <div className={styles.formGridTwo}>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Latitude</label>
+                  <input 
+                    type="number" 
+                    step="0.000001"
+                    className="form-input" 
+                    required
+                    value={branchLat}
+                    onChange={(e) => setBranchLat(e.target.value)}
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Longitude</label>
+                  <input 
+                    type="number" 
+                    step="0.000001"
+                    className="form-input" 
+                    required
+                    value={branchLng}
+                    onChange={(e) => setBranchLng(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Allowed Radius (Meters)</label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  required
+                  value={branchRadius}
+                  onChange={(e) => setBranchRadius(e.target.value)}
+                />
+              </div>
+
+              <div className={styles.formGroup} style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "8px" }}>
+                <input 
+                  type="checkbox" 
+                  id="branchIsMain"
+                  checked={branchIsMain}
+                  disabled={editingBranch && editingBranch.isMainOffice}
+                  onChange={(e) => setBranchIsMain(e.target.checked)}
+                />
+                <label htmlFor="branchIsMain" className={styles.formLabel} style={{ marginBottom: 0, cursor: "pointer" }}>Designate as Main Office</label>
+              </div>
+
+              <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>
+                <button type="submit" disabled={branchSaving} className="btn btn-primary" style={{ flex: 1 }}>
+                  {branchSaving ? "Saving..." : "Save Branch"}
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-outline" 
+                  onClick={() => setBranchModalOpen(false)}
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
