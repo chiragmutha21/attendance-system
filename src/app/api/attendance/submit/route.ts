@@ -231,10 +231,8 @@ export async function POST(request: Request) {
       hour: "2-digit",
       minute: "2-digit",
     });
-    const isPresent = result.status === "present";
-    const locationStatus = isPresent ? `In Office (${result.branchName || "Main Office"})` : `Outside Boundary (${result.branchName || "Main Office"})`;
-    const locationLabel = isPresent ? "In Office" : "Outside Office Boundary";
-    const confirmationMessage = `Your attendance marked successfully.\n\nBranch: ${result.branchName || "Main Office"}\nLocation: ${locationLabel}\nTime: ${markedTime}`;
+    const locationStatus = `In Office (${result.branchName || "Main Office"})`;
+    const confirmationMessage = `Your attendance marked successfully.\n\nBranch: ${result.branchName || "Main Office"}\nLocation: In Office\nTime: ${markedTime}`;
     await sendWhatsAppMessage(employee.mobileNumber, confirmationMessage);
 
     return NextResponse.json({
