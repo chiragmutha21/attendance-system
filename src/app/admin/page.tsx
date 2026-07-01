@@ -609,6 +609,8 @@ export default function AdminDashboard() {
                     <th>Check-In Time</th>
                     <th>Checkout Time</th>
                     <th>Work Hours</th>
+                    <th>Check-In Branch</th>
+                    <th>Check-Out Branch</th>
                     <th>Distance</th>
                     <th>Status</th>
                     <th>Festival</th>
@@ -650,16 +652,13 @@ export default function AdminDashboard() {
                         {rec.workHours || "-"}
                       </td>
                       <td>
-                        {rec.branchName ? (
-                          <span>
-                            {rec.branchName}{" "}
-                            <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>
-                              ({Math.round(rec.distanceFromBranch ?? rec.distanceFromOffice)}m)
-                            </span>
-                          </span>
-                        ) : (
-                          <span>{Math.round(rec.distanceFromOffice)}m</span>
-                        )}
+                        {rec.checkInBranchName || (rec.branchName && rec.type === 'check-in' ? rec.branchName : "-")}
+                      </td>
+                      <td>
+                        {rec.checkOutBranchName || (rec.branchName && rec.type === 'check-out' ? rec.branchName : "-")}
+                      </td>
+                      <td>
+                        {Math.round(rec.distanceFromOffice)}m
                       </td>
                       <td>
                         <span className={`${styles.badge} ${

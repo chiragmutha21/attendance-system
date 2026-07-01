@@ -95,6 +95,8 @@ export async function GET(request: Request) {
 
       return {
         ...ci,
+        checkInBranchName: ci.branchName || null,
+        checkOutBranchName: matchingCO?.branchName || null,
         checkoutTime,
         workHours,
       };
@@ -138,6 +140,8 @@ export async function GET(request: Request) {
 
       return {
         ...co,
+        checkInBranchName: matchingCI?.branchName || null,
+        checkOutBranchName: co.branchName || null,
         originalCheckInTime: checkinTimeVal,
         workHours,
       };
@@ -164,6 +168,8 @@ export async function GET(request: Request) {
       return !isMatched;
     }).map((co: any) => ({
       ...co,
+      checkInBranchName: null,
+      checkOutBranchName: co.branchName || null,
       checkoutTime: co.checkInTime,
       checkInTime: null,
       workHours: null,

@@ -322,6 +322,8 @@ export default function CheckAttendancePage() {
                     <th>Check-In Time</th>
                     <th>Checkout Time</th>
                     <th>Work Hours</th>
+                    <th>Check-In Branch</th>
+                    <th>Check-Out Branch</th>
                     <th>Distance</th>
                     <th>Status</th>
                     <th>Festival</th>
@@ -373,6 +375,12 @@ export default function CheckAttendancePage() {
                       </td>
                       <td style={{ fontWeight: record.workHours ? 600 : 400, color: record.workHours ? "var(--color-success)" : "inherit" }}>
                         {record.workHours || "-"}
+                      </td>
+                      <td>
+                        {record.checkInBranchName || (record.branchName && record.type === 'check-in' ? record.branchName : "-")}
+                      </td>
+                      <td>
+                        {record.checkOutBranchName || (record.branchName && record.type === 'check-out' ? record.branchName : "-")}
                       </td>
                       <td>{Math.round(record.distanceFromOffice)}m</td>
                       <td>
