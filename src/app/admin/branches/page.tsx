@@ -160,7 +160,7 @@ export default function BranchesPage() {
       <div className={styles.adminLayout}>
         <Sidebar activeKey="branches" onCompanyChange={(id) => setSelectedCompanyId(id)} />
 
-        <main className={styles.mainContent}>
+        <main className={styles.mainContainer}>
           <header className={styles.header}>
             <div>
               <h1 className={styles.headerTitle}>Branch Management</h1>
