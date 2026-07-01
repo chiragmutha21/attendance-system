@@ -200,12 +200,14 @@ export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: Si
             </Link>
           ))}
         </nav>
-        <div className={styles.sidebarFooter}>
-          <div className={styles.statusIndicator}>
-            <div className={`${styles.statusDot} ${styles.statusDotPulse}`} />
-            <span>{isSuperAdmin ? "Super Admin View" : "Mock Sandbox Active"}</span>
+        {isSuperAdmin && (
+          <div className={styles.sidebarFooter}>
+            <div className={styles.statusIndicator}>
+              <div className={`${styles.statusDot} ${styles.statusDotPulse}`} />
+              <span>Super Admin View</span>
+            </div>
           </div>
-        </div>
+        )}
       </aside>
     </>
   );
