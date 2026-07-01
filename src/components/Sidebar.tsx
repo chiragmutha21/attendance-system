@@ -18,14 +18,29 @@ interface Company {
 }
 
 interface SidebarProps {
-  activeKey: "dashboard" | "checkin" | "checkout" | "attendance" | "employees" | "sandbox" | "festivals" | "superadmin" | "company-admin" | "credentials";
+  activeKey: "dashboard" | "checkin" | "checkout" | "attendance" | "employees" | "sandbox" | "festivals" | "superadmin" | "company-admin" | "credentials" | "branches";
   onCompanyChange?: (companyId: string) => void;
   isSuperAdmin?: boolean;
 }
 
 export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: SidebarProps) {
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState("");
+  const [companies, setCompanies] = useState<Company[]>(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("sidebar_companies");
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch (e) {}
+      }
+    }
+    return [];
+  });
+  const [selectedCompanyId, setSelectedCompanyId] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("selectedCompanyId") || "";
+    }
+    return "";
+  });
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -41,6 +56,7 @@ export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: Si
         const data = await res.json();
         if (data.success) {
           setCompanies(data.companies);
+          localStorage.setItem("sidebar_companies", JSON.stringify(data.companies));
           const stored = localStorage.getItem("selectedCompanyId");
           const active = data.companies.find((c: Company) => c.id === stored) || data.companies[0];
           if (active) {
@@ -89,6 +105,7 @@ export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: Si
 
   const adminLinks = [
     { key: "dashboard", href: "/admin", icon: <MapPin size={18} />, label: "Dashboard" },
+    { key: "branches", href: "/admin/branches", icon: <Building2 size={18} />, label: "Branches" },
     { key: "checkin", href: "/admin/checkin", icon: <CheckCircle size={18} />, label: "Check-In Logs" },
     { key: "checkout", href: "/admin/checkout", icon: <XCircle size={18} />, label: "Check-Out Logs" },
     { key: "attendance", href: "/admin/attendance", icon: <CalendarDays size={18} />, label: "Check Attendance" },

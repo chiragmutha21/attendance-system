@@ -14,13 +14,13 @@ export function companySettingKey(companyId: string, key: string) {
 
 export async function ensureAuthUser(email: string): Promise<string> {
   const emailLower = email.toLowerCase();
-  const existing = await db.users.findFirst({
-    where: { email: emailLower },
-    select: { id: true },
-  });
+  const existingRows = await db.$queryRawUnsafe<{ id: string }[]>(
+    `SELECT id FROM auth.users WHERE email = $1 LIMIT 1`,
+    emailLower
+  );
 
-  if (existing) {
-    return existing.id;
+  if (existingRows && existingRows.length > 0) {
+    return existingRows[0].id;
   }
 
   // Insert raw auth user
@@ -40,16 +40,16 @@ export async function ensureAuthUser(email: string): Promise<string> {
     );
   `, emailLower);
 
-  const created = await db.users.findFirst({
-    where: { email: emailLower },
-    select: { id: true },
-  });
+  const createdRows = await db.$queryRawUnsafe<{ id: string }[]>(
+    `SELECT id FROM auth.users WHERE email = $1 LIMIT 1`,
+    emailLower
+  );
 
-  if (!created) {
+  if (!createdRows || createdRows.length === 0) {
     throw new Error(`Failed to find newly created auth user for: ${emailLower}`);
   }
 
-  return created.id;
+  return createdRows[0].id;
 }
 
 let defaultCompanyEnsured = false;
