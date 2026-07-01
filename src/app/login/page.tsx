@@ -25,6 +25,10 @@ function LoginContent() {
     redirectIfLoggedIn();
   }, []);
 
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showEmailForm, setShowEmailForm] = useState(false);
+
   const signInWithGoogle = async () => {
     setLoading(true);
     setError("");
@@ -47,6 +51,32 @@ function LoginContent() {
     }
   };
 
+  const signInWithEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (signInError) {
+        setError(signInError.message);
+        setLoading(false);
+        return;
+      }
+
+      const next = searchParams.get("next") || "";
+      window.location.href = `/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ""}`;
+    } catch (err: any) {
+      setError(err.message || "Failed to sign in");
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{
       minHeight: "100vh",
@@ -62,12 +92,64 @@ function LoginContent() {
         </div>
         <h1 style={{ color: "#fff", fontSize: "1.8rem", marginBottom: "8px" }}>SmartOffice Login</h1>
         <p style={{ color: "var(--text-secondary)", marginBottom: "28px" }}>
-          Continue with Google to access your company attendance dashboard.
+          Access your company attendance dashboard.
         </p>
-        <button type="button" className="btn btn-primary" onClick={signInWithGoogle} disabled={loading} style={{ width: "100%" }}>
-          {loading ? <Loader2 className="animate-spin" size={16} /> : <ShieldCheck size={16} />}
-          Continue with Google
-        </button>
+
+        {!showEmailForm ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <button type="button" className="btn btn-primary" onClick={signInWithGoogle} disabled={loading} style={{ width: "100%" }}>
+              {loading ? <Loader2 className="animate-spin" size={16} /> : <ShieldCheck size={16} />}
+              Continue with Google
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setShowEmailForm(true)}
+              style={{ width: "100%", fontSize: "0.85rem" }}
+            >
+              Sign in with Email
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={signInWithEmail} style={{ display: "flex", flexDirection: "column", gap: "14px", textAlign: "left" }}>
+            <div className="form-group" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>Email Address</label>
+              <input
+                type="email"
+                required
+                className="form-input"
+                placeholder="admin@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="form-group" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>Password</label>
+              <input
+                type="password"
+                required
+                className="form-input"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: "100%", marginTop: "8px" }}>
+              {loading ? <Loader2 className="animate-spin" size={16} /> : "Sign In"}
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setShowEmailForm(false)}
+              style={{ width: "100%", fontSize: "0.85rem" }}
+            >
+              Back to Google Sign In
+            </button>
+          </form>
+        )}
+
         {error && <p style={{ color: "#fca5a5", marginTop: "16px", fontSize: "0.85rem" }}>{error}</p>}
       </div>
     </div>
