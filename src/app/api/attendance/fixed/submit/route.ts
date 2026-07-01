@@ -77,15 +77,7 @@ export async function POST(request: Request) {
     if (!nearestBranch) {
       return NextResponse.json({ error: "No configured branch found for your company." }, { status: 400 });
     }
-
-    if (minDistance > nearestBranch.radiusMeters) {
-      return NextResponse.json({
-        error: `GPS Verification Failed: You are outside the allowed office boundary. Nearest branch is "${nearestBranch.name}" at ${Math.round(minDistance)} meters, but you must be within ${nearestBranch.radiusMeters} meters.`,
-        distance: Math.round(minDistance),
-        allowedRadius: nearestBranch.radiusMeters,
-        branchName: nearestBranch.name,
-      }, { status: 400 });
-    }
+    const isWithinRadius = minDistance <= nearestBranch.radiusMeters;
 
     // 5. Save Selfie Image
     let selfieUrl = "";
@@ -197,7 +189,7 @@ export async function POST(request: Request) {
         longitude: longitude,
         accuracy: accuracy || 0,
         distanceFromOffice: minDistance,
-        status: "present", // Present since within radius
+        status: isWithinRadius ? "present" : "outside",
         type: type,
         timezone: timezone || "Asia/Kolkata",
         deviceInfo: deviceInfo || "Unknown Device",
@@ -219,7 +211,10 @@ export async function POST(request: Request) {
     });
     
     const label = type === "check-in" ? "Check-In" : "Check-Out";
-    const confirmationMessage = `Your ${label} marked successfully.\n\nBranch: ${record.branchName || "Main Office"}\nLocation: In Office\nTime: ${markedTime}`;
+    const isPresent = record.status === "present";
+    const locationStatus = isPresent ? `In Office (${record.branchName || "Main Office"})` : `Outside Boundary (${record.branchName || "Main Office"})`;
+    const locationLabel = isPresent ? "In Office" : "Outside Office Boundary";
+    const confirmationMessage = `Your ${label} marked successfully.\n\nBranch: ${record.branchName || "Main Office"}\nLocation: ${locationLabel}\nTime: ${markedTime}`;
     await sendWhatsAppMessage(employee.mobileNumber, confirmationMessage);
 
     return NextResponse.json({
@@ -231,7 +226,7 @@ export async function POST(request: Request) {
         checkInTime: record.checkInTime,
         status: record.status,
         type: record.type,
-        locationStatus: `In Office (${record.branchName || "Main Office"})`,
+        locationStatus,
       }
     });
 

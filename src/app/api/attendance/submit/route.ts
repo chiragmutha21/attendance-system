@@ -99,14 +99,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No configured branch found for your company." }, { status: 400 });
     }
 
-    if (minDistance > nearestBranch.radiusMeters) {
-      return NextResponse.json({
-        error: `GPS Verification Failed: You are outside the allowed office boundary. Nearest branch is "${nearestBranch.name}" at ${Math.round(minDistance)} meters, but you must be within ${nearestBranch.radiusMeters} meters.`,
-        distance: Math.round(minDistance),
-        allowedRadius: nearestBranch.radiusMeters,
-        branchName: nearestBranch.name,
-      }, { status: 400 });
-    }
+    const isWithinRadius = minDistance <= nearestBranch.radiusMeters;
 
     // 6. Save Selfie Image
     let selfieUrl = "";
@@ -212,7 +205,7 @@ export async function POST(request: Request) {
             longitude: longitude,
             accuracy: accuracy || 0,
             distanceFromOffice: minDistance,
-            status: "present", // Marked present since within radius
+            status: isWithinRadius ? "present" : "outside",
             timezone: timezone || "Asia/Kolkata",
             deviceInfo: deviceInfo || "Unknown Device",
             branchId: nearestBranch.id,
@@ -238,8 +231,10 @@ export async function POST(request: Request) {
       hour: "2-digit",
       minute: "2-digit",
     });
-    const locationStatus = result.status === "present" ? `In Office (${result.branchName || "Main Office"})` : "Outside Office";
-    const confirmationMessage = `Your attendance marked successfully.\n\nBranch: ${result.branchName || "Main Office"}\nLocation: In Office\nTime: ${markedTime}`;
+    const isPresent = result.status === "present";
+    const locationStatus = isPresent ? `In Office (${result.branchName || "Main Office"})` : `Outside Boundary (${result.branchName || "Main Office"})`;
+    const locationLabel = isPresent ? "In Office" : "Outside Office Boundary";
+    const confirmationMessage = `Your attendance marked successfully.\n\nBranch: ${result.branchName || "Main Office"}\nLocation: ${locationLabel}\nTime: ${markedTime}`;
     await sendWhatsAppMessage(employee.mobileNumber, confirmationMessage);
 
     return NextResponse.json({
