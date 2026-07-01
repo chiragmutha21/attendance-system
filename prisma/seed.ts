@@ -9,15 +9,10 @@ async function main() {
 
   if (!admin) {
     console.log("No existing AdminUser found. Looking for an unused user in auth.users...");
-    const existingAdmins = await prisma.adminUser.findMany({ select: { authUserId: true } });
-    const takenUserIds = existingAdmins.map(a => a.authUserId);
-
-    const unusedUser = await prisma.users.findFirst({
-      where: {
-        id: { notIn: takenUserIds }
-      },
-      select: { id: true, email: true }
-    });
+    const unusedUserRows = await prisma.$queryRawUnsafe<{ id: string; email: string | null }[]>(
+      `SELECT id, email FROM auth.users WHERE id::text NOT IN (SELECT auth_user_id::text FROM authentication) LIMIT 1`
+    );
+    const unusedUser = unusedUserRows[0];
 
     if (!unusedUser) {
       console.error("Error: No unused users found in auth.users. Please create a user in Supabase auth first.");
