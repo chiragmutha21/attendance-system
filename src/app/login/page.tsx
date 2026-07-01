@@ -28,6 +28,16 @@ function LoginContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showEmailForm, setShowEmailForm] = useState(false);
+  const [isLocalhost, setIsLocalhost] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const hostname = window.location.hostname;
+      if (hostname === "localhost" || hostname === "127.0.0.1" || hostname.startsWith("192.168.")) {
+        setIsLocalhost(true);
+      }
+    }
+  }, []);
 
   const signInWithGoogle = async () => {
     setLoading(true);
@@ -101,14 +111,16 @@ function LoginContent() {
               {loading ? <Loader2 className="animate-spin" size={16} /> : <ShieldCheck size={16} />}
               Continue with Google
             </button>
-            <button
-              type="button"
-              className="btn btn-outline"
-              onClick={() => setShowEmailForm(true)}
-              style={{ width: "100%", fontSize: "0.85rem" }}
-            >
-              Sign in with Email
-            </button>
+            {isLocalhost && (
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setShowEmailForm(true)}
+                style={{ width: "100%", fontSize: "0.85rem" }}
+              >
+                Sign in with Email
+              </button>
+            )}
           </div>
         ) : (
           <form onSubmit={signInWithEmail} style={{ display: "flex", flexDirection: "column", gap: "14px", textAlign: "left" }}>
