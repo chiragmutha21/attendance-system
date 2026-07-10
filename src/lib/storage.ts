@@ -105,3 +105,92 @@ export async function uploadFaceImage(
     return publicUrl;
   }
 }
+
+/**
+ * Uploads a base64 or buffer company logo to the company-logos bucket.
+ * 
+ * @param companyId The ID of the company
+ * @param base64Image The image as a base64 string
+ * @returns The public URL of the uploaded logo
+ */
+export async function uploadCompanyLogo(
+  companyId: string,
+  base64Image: string
+): Promise<string> {
+  const isMock = process.env.MOCK_MODE === "true";
+  const folderName = await getCompanyFolderName(companyId);
+
+  if (isMock) {
+    // Local development storage simulation under uploads/company-logos/<folderName>/
+    const { writeFile, mkdir } = await import("fs/promises");
+    const { join } = await import("path");
+    const { existsSync } = await import("fs");
+
+    const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+    const fileName = `logo_${Date.now()}.png`;
+
+    const companyDir = join(process.cwd(), "public", "uploads", "company-logos", folderName);
+    if (!existsSync(companyDir)) {
+      await mkdir(companyDir, { recursive: true });
+    }
+
+    const filePath = join(companyDir, fileName);
+    await writeFile(filePath, buffer);
+
+    const localUrl = `/uploads/company-logos/${folderName}/${fileName}`;
+    console.log(`[MOCK MODE] Saved company logo locally: ${localUrl}`);
+    return localUrl;
+  } else {
+    // Production Storage: Upload to company-logos bucket
+    const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+    const fileName = `logo_${Date.now()}.png`;
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    const supabaseKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      "";
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Supabase credentials are not configured in the environment.");
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const bucketName = "company-logos";
+    const filePath = `${folderName}/${fileName}`;
+
+    // Programmatically ensure the bucket exists!
+    try {
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const exists = buckets?.some(b => b.name === bucketName);
+      if (!exists) {
+        await supabase.storage.createBucket(bucketName, { public: true });
+      }
+    } catch (e) {
+      console.error("Error checking/creating bucket:", e);
+    }
+
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .upload(filePath, buffer, {
+        contentType: "image/png",
+        upsert: true,
+      });
+
+    if (error) {
+      console.error("Supabase Storage upload error details:", error);
+      throw new Error(`Failed to upload company logo: ${error.message}`);
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from(bucketName)
+      .getPublicUrl(filePath);
+
+    const publicUrl = publicUrlData.publicUrl;
+    console.log(`[PRODUCTION MODE] Company logo uploaded to company-logos bucket: ${publicUrl}`);
+    return publicUrl;
+  }
+}
+

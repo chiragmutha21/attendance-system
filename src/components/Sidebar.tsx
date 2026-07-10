@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Users, MapPin, CheckCircle, XCircle,
   Sparkles, CalendarDays, Gift, Menu, X,
-  ShieldCheck, Building2, KeyRound
+  ShieldCheck, Building2, KeyRound, Image
 } from "lucide-react";
 import styles from "../app/admin/admin.module.css";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
@@ -18,7 +18,7 @@ interface Company {
 }
 
 interface SidebarProps {
-  activeKey: "dashboard" | "checkin" | "checkout" | "attendance" | "employees" | "sandbox" | "festivals" | "superadmin" | "company-admin" | "credentials" | "branches";
+  activeKey: "dashboard" | "checkin" | "checkout" | "attendance" | "employees" | "sandbox" | "festivals" | "superadmin" | "company-admin" | "credentials" | "branches" | "company-logos";
   onCompanyChange?: (companyId: string) => void;
   isSuperAdmin?: boolean;
 }
@@ -117,6 +117,7 @@ export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: Si
   const superAdminLinks = [
     { key: "superadmin", href: "/superadmin", icon: <ShieldCheck size={18} />, label: "Super Admin" },
     { key: "company-admin", href: "/superadmin/company-admin", icon: <Building2 size={18} />, label: "Company Details" },
+    { key: "company-logos", href: "/superadmin/company-logos", icon: <Image size={18} />, label: "Logo Submissions" },
   ];
 
   const navLinks = isSuperAdmin ? superAdminLinks : adminLinks;

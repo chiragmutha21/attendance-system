@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { companySettingKey } from "@/lib/tenant";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
 import { companySchema, formatZodError } from "@/lib/validation";
+import { uploadCompanyLogo } from "@/lib/storage";
 
 export async function POST(request: Request) {
   try {
@@ -56,6 +57,7 @@ export async function POST(request: Request) {
       latitude,
       longitude,
       radius,
+      logo,
     } = parsed.data;
 
     const company = await db.$transaction(async (tx) => {
@@ -79,6 +81,18 @@ export async function POST(request: Request) {
           officeRadiusMeters: radius,
         },
       });
+
+      if (logo) {
+        try {
+          const logoUrl = await uploadCompanyLogo(createdCompany.id, logo);
+          await tx.company.update({
+            where: { id: createdCompany.id },
+            data: { logoUrl },
+          });
+        } catch (uploadErr) {
+          console.error("Failed to upload company logo in onboarding:", uploadErr);
+        }
+      }
 
       await tx.adminUser.upsert({
         where: { email: adminEmail.toLowerCase() },

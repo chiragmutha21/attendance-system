@@ -4,11 +4,12 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { 
   Users, MapPin, CheckCircle, XCircle, AlertTriangle, ShieldAlert,
-  Settings, Image, Search, Filter, Download, ExternalLink, Menu, Sparkles, CalendarDays, X, Plus
+  Settings, Image, Search, Filter, Download, ExternalLink, Menu, Sparkles, CalendarDays, X, Plus, Loader2
 } from "lucide-react";
 import AuthGate from "@/components/AuthGate";
 import Sidebar from "@/components/Sidebar";
 import styles from "./admin.module.css";
+import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 
 interface Record {
   id: string;
@@ -97,6 +98,75 @@ export default function AdminDashboard() {
   const mapRef = useRef<any>(null);
   const selectedCompanyHeaders: { [key: string]: string } = selectedCompanyId ? { "x-company-id": selectedCompanyId } : {};
 
+  // Company logo upload state
+  const [companyLogo, setCompanyLogo] = useState<string | null>(null);
+  const [showLogoPrompt, setShowLogoPrompt] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState("");
+  const [logoSuccessMsg, setLogoSuccessMsg] = useState("");
+
+  const checkCompanyLogo = async (companyId: string) => {
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const res = await fetch("/api/admin/companies", {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      const data = await res.json();
+      if (data.success && data.companies) {
+        const current = data.companies.find((c: any) => c.id === companyId);
+        if (current) {
+          setCompanyLogo(current.logoUrl);
+          
+          const dismissed = sessionStorage.getItem(`dismissed_logo_prompt_${companyId}`);
+          if (!current.logoUrl && dismissed !== "true") {
+            setShowLogoPrompt(true);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error checking company logo:", err);
+    }
+  };
+
+  const handleUploadLogo = async (base64Image: string) => {
+    setLogoUploading(true);
+    setLogoError("");
+    setLogoSuccessMsg("");
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const res = await fetch("/api/admin/company/logo", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: session?.access_token ? `Bearer ${session.access_token}` : "",
+          "x-company-id": selectedCompanyId
+        },
+        body: JSON.stringify({ logo: base64Image })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setLogoError(data.error || "Failed to upload logo.");
+      } else {
+        setCompanyLogo(data.logoUrl);
+        setLogoSuccessMsg("Your check-in and check-out images will be sent to your company email in 48 hours.");
+        setTimeout(() => {
+          setShowLogoPrompt(false);
+          setLogoSuccessMsg("");
+        }, 4000);
+      }
+    } catch (err) {
+      console.error(err);
+      setLogoError("Network error. Failed to upload logo.");
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
   useEffect(() => {
     setSelectedCompanyId(localStorage.getItem("selectedCompanyId") || "");
     
@@ -120,6 +190,7 @@ export default function AdminDashboard() {
     fetchOfficeConfig();
     fetchEmployeesCount();
     fetchBranches();
+    checkCompanyLogo(selectedCompanyId);
   }, [mounted, selectedCompanyId, search, statusFilter, startDate, endDate]);
 
   // Load Map when Leaflet scripts are injected and ready
@@ -706,6 +777,147 @@ export default function AdminDashboard() {
         </div>
       )}
 
+
+      {showLogoPrompt && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          background: "rgba(6, 7, 10, 0.8)",
+          backdropFilter: "blur(8px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999,
+          padding: "24px"
+        }}>
+          <div className="glass-panel" style={{
+            width: "100%",
+            maxWidth: "480px",
+            padding: "32px",
+            textAlign: "center",
+            position: "relative",
+            border: "1px solid rgba(139, 92, 246, 0.2)",
+            boxShadow: "0 0 30px rgba(139, 92, 246, 0.15)"
+          }}>
+            <button
+              onClick={() => {
+                sessionStorage.setItem(`dismissed_logo_prompt_${selectedCompanyId}`, "true");
+                setShowLogoPrompt(false);
+              }}
+              style={{
+                position: "absolute",
+                top: "16px",
+                right: "16px",
+                background: "transparent",
+                border: "none",
+                color: "var(--text-secondary)",
+                cursor: "pointer",
+                outline: "none"
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px" }}>
+              <div style={{
+                width: "50px",
+                height: "50px",
+                borderRadius: "12px",
+                background: "rgba(139, 92, 246, 0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--color-primary)"
+              }}>
+                <Sparkles size={24} />
+              </div>
+            </div>
+
+            <h3 style={{ color: "#fff", fontSize: "1.4rem", fontWeight: 700, marginBottom: "8px" }}>Add Company Logo</h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.88rem", lineHeight: "1.5", marginBottom: "24px" }}>
+              Please upload your company logo for check-in and check-out logs. This will help brand your employee registry dashboard.
+            </p>
+
+            {logoSuccessMsg ? (
+              <div style={{
+                padding: "16px",
+                borderRadius: "8px",
+                background: "rgba(16, 185, 129, 0.08)",
+                border: "1px solid rgba(16, 185, 129, 0.2)",
+                color: "#a7f3d0",
+                fontSize: "0.88rem",
+                lineHeight: "1.5",
+                marginBottom: "16px",
+                textAlign: "left"
+              }}>
+                <strong>Success!</strong> {logoSuccessMsg}
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px", textAlign: "left", marginBottom: "16px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>Select Logo Image</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="form-input"
+                    style={{ padding: "8px 12px", fontSize: "0.85rem" }}
+                    disabled={logoUploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 1024 * 1024) {
+                        setLogoError("Logo size must be less than 1MB.");
+                        e.target.value = "";
+                        return;
+                      }
+                      setLogoError("");
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        handleUploadLogo(reader.result as string);
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                    Max file size: 1MB. Format: PNG, JPG, JPEG.
+                  </span>
+                </div>
+
+                {logoError && (
+                  <div style={{ color: "#fca5a5", fontSize: "0.82rem", background: "rgba(239, 68, 68, 0.08)", padding: "10px", borderRadius: "6px", border: "1px solid rgba(239, 68, 68, 0.2)" }}>
+                    {logoError}
+                  </div>
+                )}
+
+                {logoUploading && (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+                    <Loader2 className="animate-spin" size={16} />
+                    <span>Uploading company logo...</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!logoSuccessMsg && (
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ width: "100%", fontSize: "0.88rem" }}
+                disabled={logoUploading}
+                onClick={() => {
+                  sessionStorage.setItem(`dismissed_logo_prompt_${selectedCompanyId}`, "true");
+                  setShowLogoPrompt(false);
+                }}
+              >
+                Skip for Now
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       </div>
     </AuthGate>
