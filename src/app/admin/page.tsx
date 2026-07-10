@@ -29,6 +29,9 @@ interface Record {
   branchId?: string | null;
   branchName?: string | null;
   distanceFromBranch?: number | null;
+  checkInBranchName?: string | null;
+  checkOutBranchName?: string | null;
+  type?: string | null;
 }
 
 const formatDateToDDMMYYYY = (dateInput: string | Date | null | undefined) => {

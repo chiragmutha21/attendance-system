@@ -40,6 +40,10 @@ interface AttendanceRecord {
   workHours?: string | null;
   deviceInfo: string;
   festival?: string | null;
+  branchName?: string | null;
+  checkInBranchName?: string | null;
+  checkOutBranchName?: string | null;
+  type?: string | null;
 }
 
 type Period = "daily" | "weekly" | "monthly";
