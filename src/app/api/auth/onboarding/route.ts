@@ -58,6 +58,7 @@ export async function POST(request: Request) {
       longitude,
       radius,
       logo,
+      address,
     } = parsed.data;
 
     const company = await db.$transaction(async (tx) => {
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
           officeLatitude: latitude,
           officeLongitude: longitude,
           officeRadiusMeters: radius,
+          address,
         },
       });
 

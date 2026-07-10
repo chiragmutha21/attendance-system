@@ -39,6 +39,7 @@ export const companySchema = z.object({
   longitude: z.coerce.number().min(-180, "Invalid longitude").max(180, "Invalid longitude"),
   radius: z.coerce.number().int().min(25, "Radius must be at least 25m").max(10000, "Radius is too large"),
   logo: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
 });
 
 export function formatZodError(error: z.ZodError) {

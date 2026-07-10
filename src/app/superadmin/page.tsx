@@ -30,6 +30,7 @@ interface Company {
   employeeLimit: number;
   subscription: string;
   status: string;
+  address?: string | null;
   createdAt: string;
   _count?: {
     employees: number;
@@ -69,6 +70,7 @@ export default function SuperAdminPage() {
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [radius, setRadius] = useState("200");
+  const [address, setAddress] = useState("");
 
   const fetchCompanies = async () => {
     try {
@@ -153,6 +155,7 @@ export default function SuperAdminPage() {
     setLatitude("");
     setLongitude("");
     setRadius("200");
+    setAddress("");
     setError("");
     setModalOpen(true);
   };
@@ -199,6 +202,7 @@ export default function SuperAdminPage() {
           latitude,
           longitude,
           radius,
+          address,
         }),
       });
 
@@ -421,7 +425,7 @@ export default function SuperAdminPage() {
                     <tr key={company.id}>
                       <td>
                          <strong>{company.name}</strong>
-                        <div className={styles.formHint}>{company.id}</div>
+                        <div className={styles.formHint}>{company.address || "No Address"}</div>
                       </td>
                       <td>
                         {company.adminName}
@@ -463,6 +467,11 @@ export default function SuperAdminPage() {
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Company Name</label>
                 <input className="form-input" required value={companyName} onChange={(event) => setCompanyName(event.target.value)} />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Company Address</label>
+                <input className="form-input" required value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Enter company address" />
               </div>
 
               <div className={styles.formGridTwo}>

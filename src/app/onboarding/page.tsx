@@ -26,6 +26,7 @@ function OnboardingContent() {
   const [latitude, setLatitude] = useState("28.6139");
   const [longitude, setLongitude] = useState("77.2090");
   const [radius, setRadius] = useState("200");
+  const [address, setAddress] = useState("");
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [logoName, setLogoName] = useState("");
   const [logoError, setLogoError] = useState("");
@@ -114,6 +115,7 @@ function OnboardingContent() {
           longitude,
           radius,
           logo: logoBase64,
+          address,
         }),
       });
 
@@ -187,6 +189,11 @@ function OnboardingContent() {
               <div className={styles.formGroup}>
                 <label className={styles.formLabel}>Company Name</label>
                 <input className="form-input" required value={companyName} onChange={(event) => setCompanyName(event.target.value)} />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Office Address</label>
+                <input className="form-input" required value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Enter main office address" />
               </div>
 
               <div className={styles.formGridTwo}>

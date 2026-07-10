@@ -92,6 +92,7 @@ export async function POST(request: Request) {
       latitude,
       longitude,
       radius,
+      address,
     } = parsed.data;
 
     // Ensure the admin exists in auth.users
@@ -116,6 +117,7 @@ export async function POST(request: Request) {
           officeLatitude: latitude,
           officeLongitude: longitude,
           officeRadiusMeters: radius,
+          address,
         },
       });
 

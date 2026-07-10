@@ -36,6 +36,7 @@ model Company {
   adminEmail           String             @map("admin_email")
   adminPhone           String             @map("admin_phone")
   logoUrl              String?            @map("logo_url")
+  address              String?            @map("company_address")
   countryCode          String             @default("+91") @map("country_code")
   employeeLimit        Int                @default(25) @map("employee_limit")
   subscription         String             @default("trial")
