@@ -413,7 +413,6 @@ export default function SuperAdminPage() {
                     <th>Country</th>
                     <th>Employee Limit</th>
                     <th>Subscription</th>
-                    <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -429,45 +428,9 @@ export default function SuperAdminPage() {
                         <div className={styles.formHint}>{company.adminEmail}</div>
                       </td>
                       <td>{company.countryCode}</td>
-                      <td>
-                        <input
-                          type="number"
-                          min="1"
-                          className="form-input"
-                          style={{ width: "110px" }}
-                          value={company.employeeLimit}
-                          onChange={(event) => updateLocalCompany(company.id, { employeeLimit: Number(event.target.value) })}
-                        />
-                      </td>
-                      <td>
-                        <select
-                          className={styles.filterSelect}
-                          value={company.subscription}
-                          onChange={(event) => updateLocalCompany(company.id, { subscription: event.target.value })}
-                        >
-                          <option value="trial">Trial</option>
-                          <option value="active">Active</option>
-                          <option value="paused">Paused</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-                      </td>
-                      <td>
-                        <select
-                          className={styles.filterSelect}
-                          value={company.status}
-                          onChange={(event) => updateLocalCompany(company.id, { status: event.target.value })}
-                        >
-                          <option value="active">Active</option>
-                          <option value="inactive">Inactive</option>
-                        </select>
-                      </td>
+                      <td>{company.employeeLimit}</td>
+                      <td style={{ textTransform: "capitalize" }}>{company.subscription}</td>
                       <td className={styles.actionsCell}>
-                        <button className="btn btn-outline" style={{ padding: "8px 10px" }} onClick={() => updateCompany(company)}>
-                          {savingId === company.id ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-                        </button>
-                        <button className="btn btn-outline" style={{ padding: "8px 10px" }} onClick={() => openCompanyAdmin(company)}>
-                          <ExternalLink size={14} />
-                        </button>
                         <button
                           className="btn btn-outline"
                           style={{ padding: "8px 10px", borderColor: "rgba(239, 68, 68, 0.2)", color: "var(--color-danger)" }}
