@@ -44,9 +44,11 @@ interface AttendanceRecord {
   checkInBranchName?: string | null;
   checkOutBranchName?: string | null;
   type?: string | null;
+  latitude?: number;
+  longitude?: number;
 }
 
-type Period = "daily" | "weekly" | "monthly";
+type Period = "daily" | "weekly" | "monthly" | "custom";
 
 const toDateInputValue = (date: Date) => {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -117,8 +119,18 @@ export default function CheckOutLogsPage() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("all");
   const [search, setSearch] = useState("");
   const [activeSelfie, setActiveSelfie] = useState<string | null>(null);
+  const [customStartDate, setCustomStartDate] = useState(() => toDateInputValue(new Date()));
+  const [customEndDate, setCustomEndDate] = useState(() => toDateInputValue(new Date()));
 
-  const selectedRange = useMemo(() => getPeriodRange(period), [period]);
+  const selectedRange = useMemo(() => {
+    if (period === "custom") {
+      return {
+        startDate: customStartDate,
+        endDate: customEndDate,
+      };
+    }
+    return getPeriodRange(period);
+  }, [period, customStartDate, customEndDate]);
   const selectedCompanyHeaders: Record<string, string> = selectedCompanyId ? { "x-company-id": selectedCompanyId } : {};
 
   const fetchEmployees = async () => {
@@ -184,15 +196,17 @@ export default function CheckOutLogsPage() {
   const exportToCSV = () => {
     if (records.length === 0) return;
 
-    const headers = ["Employee ID", "Employee Name", "Check-In Time", "Check-Out Time", "Work Hours", "Distance (m)", "Status", "Festival", "Device"];
+    const headers = ["Employee ID", "Employee Name", "Check-Out Time", "Work Hours", "Branch", "Distance (m)", "Status", "Latitude", "Longitude", "Festival", "Device"];
     const rows = records.map((record) => [
       record.employeeId,
       record.employeeName,
-      record.originalCheckInTime ? formatDateTimeToDDMMYYYY(record.originalCheckInTime) : "-",
       formatDateTimeToDDMMYYYY(record.checkInTime),
       record.workHours || "-",
+      record.checkOutBranchName || (record.branchName && record.type === 'check-out' ? record.branchName : "-"),
       Math.round(record.distanceFromOffice),
       record.status,
+      record.latitude || "-",
+      record.longitude || "-",
       record.festival || "-",
       record.deviceInfo.replace(/,/g, " "),
     ]);
@@ -282,7 +296,28 @@ export default function CheckOutLogsPage() {
               <option value="daily">Daily</option>
               <option value="weekly">Weekly</option>
               <option value="monthly">Monthly</option>
+              <option value="custom">Custom Range</option>
             </select>
+
+            {period === "custom" && (
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <input
+                  type="date"
+                  className={styles.filterSelect}
+                  value={customStartDate}
+                  onChange={(event) => setCustomStartDate(event.target.value)}
+                  style={{ width: "auto", minWidth: "140px" }}
+                />
+                <span style={{ color: "var(--text-secondary)" }}>to</span>
+                <input
+                  type="date"
+                  className={styles.filterSelect}
+                  value={customEndDate}
+                  onChange={(event) => setCustomEndDate(event.target.value)}
+                  style={{ width: "auto", minWidth: "140px" }}
+                />
+              </div>
+            )}
 
             <select
               className={styles.filterSelect}
@@ -324,13 +359,12 @@ export default function CheckOutLogsPage() {
                     <th>Selfie</th>
                     <th>ID</th>
                     <th>Employee</th>
-                    <th>Check-In Time</th>
                     <th>Check-Out Time</th>
                     <th>Work Hours</th>
-                    <th>Check-In Branch</th>
-                    <th>Check-Out Branch</th>
+                    <th>Branch</th>
                     <th>Distance</th>
                     <th>Status</th>
+                    <th>Coordinates</th>
                     <th>Festival</th>
                     <th>Device Info</th>
                   </tr>
@@ -349,21 +383,6 @@ export default function CheckOutLogsPage() {
                       <td style={{ fontWeight: 700 }}>{record.employeeId}</td>
                       <td>{record.employeeName}</td>
                       <td>
-                        {record.originalCheckInTime ? (
-                          <>
-                            {formatDateToDDMMYYYY(record.originalCheckInTime)}{" "}
-                            <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>
-                              {new Date(record.originalCheckInTime).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </>
-                        ) : (
-                          <span style={{ color: "var(--text-secondary)" }}>-</span>
-                        )}
-                      </td>
-                      <td>
                         {formatDateToDDMMYYYY(record.checkInTime)}{" "}
                         <span style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>
                           {new Date(record.checkInTime).toLocaleTimeString([], {
@@ -374,9 +393,6 @@ export default function CheckOutLogsPage() {
                       </td>
                       <td style={{ fontWeight: record.workHours ? 600 : 400, color: record.workHours ? "var(--color-success)" : "inherit" }}>
                         {record.workHours || "-"}
-                      </td>
-                      <td>
-                        {record.checkInBranchName || (record.branchName && record.type === 'check-in' ? record.branchName : "-")}
                       </td>
                       <td>
                         {record.checkOutBranchName || (record.branchName && record.type === 'check-out' ? record.branchName : "-")}
@@ -390,6 +406,31 @@ export default function CheckOutLogsPage() {
                         >
                           {record.status === "present" ? "Present" : "Outside Radius"}
                         </span>
+                      </td>
+                      <td>
+                        {record.latitude && record.longitude ? (
+                          <a 
+                            href={`https://www.google.com/maps/search/?api=1&query=${record.latitude},${record.longitude}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ 
+                              display: "inline-flex", 
+                              alignItems: "center", 
+                              gap: "4px",
+                              color: "var(--color-primary)",
+                              textDecoration: "underline",
+                              cursor: "pointer",
+                              fontWeight: 600,
+                              fontSize: "0.85rem"
+                            }}
+                            title="Click to view on Google Maps"
+                          >
+                            <MapPin size={14} />
+                            {record.latitude.toFixed(6)}, {record.longitude.toFixed(6)}
+                          </a>
+                        ) : (
+                          <span style={{ color: "var(--text-secondary)" }}>-</span>
+                        )}
                       </td>
                       <td>
                         {record.festival ? (

@@ -47,7 +47,12 @@ export default function AttendancePage() {
   } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [gpsLoading, setGpsLoading] = useState(true);
+  const [showGpsWarning, setShowGpsWarning] = useState(false);
   const expiryTimerRef = useRef<number | null>(null);
+  const gpsWatchIdRef = useRef<number | null>(null);
+  const hasShownGpsWarningRef = useRef(false);
+
+
 
   // Camera & Image Capture States
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -77,8 +82,13 @@ export default function AttendancePage() {
       if (expiryTimerRef.current) {
         clearTimeout(expiryTimerRef.current);
       }
+      // Clear GPS watch
+      if (gpsWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+      }
     };
   }, [token]);
+
 
   useEffect(() => {
     if (!successData?.success) return;
@@ -394,29 +404,83 @@ export default function AttendancePage() {
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
+    // Clear any existing watch
+    if (gpsWatchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+      gpsWatchIdRef.current = null;
+    }
+
+    let bestPosition: GeolocationPosition | null = null;
+    let attempts = 0;
+
+    const handleSuccess = (position: GeolocationPosition) => {
+      attempts++;
+      console.log(`GPS Location attempt #${attempts}: Lat=${position.coords.latitude}, Lng=${position.coords.longitude}, Accuracy=${position.coords.accuracy}m`);
+
+      // Keep track of the position with the best accuracy (lowest value in meters)
+      if (!bestPosition || position.coords.accuracy < bestPosition.coords.accuracy) {
+        bestPosition = position;
         setGpsLocation({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
         });
-        setGpsLoading(false);
-      },
-      (err) => {
-        console.error("GPS error:", err);
-        let message = "GPS permission denied. Location is mandatory for check-in.";
-        if (err.code === 2) message = "Location unavailable. Ensure GPS is enabled on your device.";
-        if (err.code === 3) message = "GPS request timed out. Please try again.";
-        setGpsError(message);
-        setGpsLoading(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 12000,
-        maximumAge: 0,
+
+        // Trigger warning popup ONLY ONCE if accuracy is poor (> 150m)
+        if (position.coords.accuracy > 150 && !hasShownGpsWarningRef.current) {
+          setShowGpsWarning(true);
+          hasShownGpsWarningRef.current = true;
+        }
       }
-    );
+
+      // If we have achieved a highly accurate lock (<= 25 meters), we stop watching to save battery
+      if (position.coords.accuracy <= 25) {
+        if (gpsWatchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+          gpsWatchIdRef.current = null;
+        }
+        setGpsLoading(false);
+      } else {
+        // If accuracy is somewhat usable (<= 100m) or we have tried enough times, stop the loading animation
+        if (attempts >= 3 || position.coords.accuracy <= 100) {
+          setGpsLoading(false);
+        }
+      }
+    };
+
+    const handleError = (err: GeolocationPositionError) => {
+      console.error("GPS error:", err);
+      // If we already have a coordinate from a previous watch tick, keep it and stop loading
+      if (bestPosition) {
+        setGpsLoading(false);
+        if (gpsWatchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+          gpsWatchIdRef.current = null;
+        }
+        return;
+      }
+
+      let message = "GPS permission denied. Location is mandatory for check-in.";
+      if (err.code === 2) message = "Location unavailable. Ensure GPS is enabled on your device.";
+      if (err.code === 3) message = "GPS request timed out. Please try again.";
+      setGpsError(message);
+      setGpsLoading(false);
+      if (gpsWatchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(gpsWatchIdRef.current);
+        gpsWatchIdRef.current = null;
+      }
+    };
+
+    gpsWatchIdRef.current = navigator.geolocation.watchPosition(handleSuccess, handleError, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    });
+
+    // Safety timeout: stop loading spinner if GPS lock is slow
+    setTimeout(() => {
+      setGpsLoading(false);
+    }, 6000);
   };
 
   // 8. Submit Check-In
@@ -845,6 +909,85 @@ export default function AttendancePage() {
           )}
         </button>
       </div>
+
+      {showGpsWarning && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.75)",
+          backdropFilter: "blur(8px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999,
+          padding: "20px",
+        }}>
+          <div style={{
+            background: "rgba(23, 23, 37, 0.95)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: "16px",
+            padding: "24px",
+            maxWidth: "400px",
+            width: "100%",
+            textAlign: "center",
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.5)",
+          }}>
+            <div style={{
+              width: "48px",
+              height: "48px",
+              borderRadius: "50%",
+              backgroundColor: "rgba(234, 179, 8, 0.15)",
+              color: "#eab308",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 16px",
+            }}>
+              <MapPin size={24} />
+            </div>
+            <h3 style={{
+              color: "#ffffff",
+              fontSize: "18px",
+              fontWeight: 600,
+              marginBottom: "10px",
+            }}>
+              Low GPS Accuracy
+            </h3>
+            <p style={{
+              color: "rgba(255, 255, 255, 0.7)",
+              fontSize: "14px",
+              lineHeight: "1.5",
+              marginBottom: "20px",
+            }}>
+              Your mobile device is reporting a low-accuracy location (±{Math.round(gpsLocation?.accuracy || 0)}m). 
+              <br/><br/>
+              Please stand near a window or open area and wait for a few seconds to let your GPS calibrate for an accurate check-in.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowGpsWarning(false)}
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: "8px",
+                background: "linear-gradient(135deg, #eab308, #ca8a04)",
+                color: "#000000",
+                fontWeight: 600,
+                border: "none",
+                cursor: "pointer",
+                transition: "opacity 0.2s",
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.opacity = "0.9")}
+              onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

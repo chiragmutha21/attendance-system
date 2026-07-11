@@ -44,9 +44,11 @@ interface AttendanceRecord {
   checkInBranchName?: string | null;
   checkOutBranchName?: string | null;
   type?: string | null;
+  latitude?: number;
+  longitude?: number;
 }
 
-type Period = "daily" | "weekly" | "monthly";
+type Period = "daily" | "weekly" | "monthly" | "custom";
 
 const toDateInputValue = (date: Date) => {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -117,8 +119,18 @@ export default function CheckAttendancePage() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("all");
   const [search, setSearch] = useState("");
   const [activeSelfie, setActiveSelfie] = useState<string | null>(null);
+  const [customStartDate, setCustomStartDate] = useState(() => toDateInputValue(new Date()));
+  const [customEndDate, setCustomEndDate] = useState(() => toDateInputValue(new Date()));
 
-  const selectedRange = useMemo(() => getPeriodRange(period), [period]);
+  const selectedRange = useMemo(() => {
+    if (period === "custom") {
+      return {
+        startDate: customStartDate,
+        endDate: customEndDate,
+      };
+    }
+    return getPeriodRange(period);
+  }, [period, customStartDate, customEndDate]);
   const selectedCompanyHeaders: Record<string, string> = selectedCompanyId ? { "x-company-id": selectedCompanyId } : {};
 
   const fetchEmployees = async () => {
@@ -183,7 +195,7 @@ export default function CheckAttendancePage() {
   const exportToCSV = () => {
     if (records.length === 0) return;
 
-    const headers = ["Employee ID", "Employee Name", "Check-In Time", "Checkout Time", "Work Hours", "Distance (m)", "Status", "Festival", "Device"];
+    const headers = ["Employee ID", "Employee Name", "Check-In Time", "Checkout Time", "Work Hours", "Distance (m)", "Status", "Latitude", "Longitude", "Festival", "Device"];
     const rows = records.map((record) => [
       record.employeeId,
       record.employeeName,
@@ -192,6 +204,8 @@ export default function CheckAttendancePage() {
       record.workHours || "-",
       Math.round(record.distanceFromOffice),
       record.status,
+      record.latitude || "-",
+      record.longitude || "-",
       record.festival || "-",
       record.deviceInfo.replace(/,/g, " "),
     ]);
@@ -281,7 +295,28 @@ export default function CheckAttendancePage() {
               <option value="daily">Daily</option>
               <option value="weekly">Weekly</option>
               <option value="monthly">Monthly</option>
+              <option value="custom">Custom Range</option>
             </select>
+
+            {period === "custom" && (
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <input
+                  type="date"
+                  className={styles.filterSelect}
+                  value={customStartDate}
+                  onChange={(event) => setCustomStartDate(event.target.value)}
+                  style={{ width: "auto", minWidth: "140px" }}
+                />
+                <span style={{ color: "var(--text-secondary)" }}>to</span>
+                <input
+                  type="date"
+                  className={styles.filterSelect}
+                  value={customEndDate}
+                  onChange={(event) => setCustomEndDate(event.target.value)}
+                  style={{ width: "auto", minWidth: "140px" }}
+                />
+              </div>
+            )}
 
             <select
               className={styles.filterSelect}
@@ -330,6 +365,7 @@ export default function CheckAttendancePage() {
                     <th>Check-Out Branch</th>
                     <th>Distance</th>
                     <th>Status</th>
+                    <th>Coordinates</th>
                     <th>Festival</th>
                     <th>Device Info</th>
                   </tr>
@@ -395,6 +431,31 @@ export default function CheckAttendancePage() {
                         >
                           {record.status === "present" ? "Present" : "Outside Radius"}
                         </span>
+                      </td>
+                      <td>
+                        {record.latitude && record.longitude ? (
+                          <a 
+                            href={`https://www.google.com/maps/search/?api=1&query=${record.latitude},${record.longitude}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ 
+                              display: "inline-flex", 
+                              alignItems: "center", 
+                              gap: "4px",
+                              color: "var(--color-primary)",
+                              textDecoration: "underline",
+                              cursor: "pointer",
+                              fontWeight: 600,
+                              fontSize: "0.85rem"
+                            }}
+                            title="Click to view on Google Maps"
+                          >
+                            <MapPin size={14} />
+                            {record.latitude.toFixed(6)}, {record.longitude.toFixed(6)}
+                          </a>
+                        ) : (
+                          <span style={{ color: "var(--text-secondary)" }}>-</span>
+                        )}
                       </td>
                       <td>
                         {record.festival ? (

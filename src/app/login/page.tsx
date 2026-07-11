@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Loader2, ShieldCheck, Sparkles, Mail, Lock, LogIn, UserPlus } from "lucide-react";
+import { Loader2, ShieldCheck, Sparkles, Mail, Lock, LogIn } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 
 function LoginContent() {
@@ -13,7 +13,6 @@ function LoginContent() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
 
   // Clear any existing session on mount so repeat users must sign in
   useEffect(() => {
@@ -63,44 +62,38 @@ function LoginContent() {
     setMessage("");
 
     try {
-      const supabase = getSupabaseBrowserClient();
+      const emailTrimmed = email.trim();
       
-      if (isSignUp) {
-        // Sign Up Mode
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-        });
+      // Call backend helper to ensure user credentials exist and password is confirmed
+      const helperRes = await fetch("/api/auth/login-helper", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailTrimmed, password }),
+      });
 
-        if (signUpError) {
-          setError(signUpError.message);
-          setLoading(false);
-          return;
-        }
+      const helperData = await helperRes.json();
 
-        if (data.session) {
-          const next = searchParams.get("next") || "";
-          window.location.href = `/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ""}`;
-        } else {
-          setMessage("Registration successful! Please check your email for a confirmation link.");
-          setLoading(false);
-        }
-      } else {
-        // Sign In Mode
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
-
-        if (signInError) {
-          setError(signInError.message);
-          setLoading(false);
-          return;
-        }
-
-        const next = searchParams.get("next") || "";
-        window.location.href = `/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ""}`;
+      if (!helperRes.ok) {
+        setError(helperData.error || "Failed to verify login context");
+        setLoading(false);
+        return;
       }
+
+      // Perform standard sign in now that auth user has been verified/synced
+      const supabase = getSupabaseBrowserClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: emailTrimmed,
+        password,
+      });
+
+      if (signInError) {
+        setError(signInError.message);
+        setLoading(false);
+        return;
+      }
+
+      const next = searchParams.get("next") || "";
+      window.location.href = `/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ""}`;
     } catch (err: any) {
       setError(err.message || "Failed to authenticate");
       setLoading(false);
@@ -151,61 +144,6 @@ function LoginContent() {
           Workforce & Attendance Tracking Portal
         </p>
 
-        {/* Tab Headers */}
-        <div style={{
-          display: "flex",
-          background: "rgba(255, 255, 255, 0.03)",
-          padding: "4px",
-          borderRadius: "10px",
-          border: "1px solid var(--border-light)",
-          marginBottom: "24px"
-        }}>
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignUp(false);
-              setError("");
-              setMessage("");
-            }}
-            style={{
-              flex: 1,
-              padding: "10px",
-              background: !isSignUp ? "rgba(139, 92, 246, 0.15)" : "transparent",
-              border: "none",
-              borderRadius: "8px",
-              color: !isSignUp ? "#fff" : "var(--text-secondary)",
-              fontWeight: 600,
-              fontSize: "0.88rem",
-              cursor: "pointer",
-              transition: "all 0.2s ease"
-            }}
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignUp(true);
-              setError("");
-              setMessage("");
-            }}
-            style={{
-              flex: 1,
-              padding: "10px",
-              background: isSignUp ? "rgba(139, 92, 246, 0.15)" : "transparent",
-              border: "none",
-              borderRadius: "8px",
-              color: isSignUp ? "#fff" : "var(--text-secondary)",
-              fontWeight: 600,
-              fontSize: "0.88rem",
-              cursor: "pointer",
-              transition: "all 0.2s ease"
-            }}
-          >
-            Create Account
-          </button>
-        </div>
-
         {/* Email & Password Authentication Form */}
         <form onSubmit={handleEmailAuth} style={{ display: "flex", flexDirection: "column", gap: "18px", textAlign: "left" }}>
           <div className="form-group" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -240,13 +178,25 @@ function LoginContent() {
             />
           </div>
 
+          <div style={{
+            background: "rgba(139, 92, 246, 0.05)",
+            border: "1px solid rgba(139, 92, 246, 0.15)",
+            borderRadius: "8px",
+            padding: "10px 12px",
+            fontSize: "0.78rem",
+            color: "var(--text-secondary)",
+            lineHeight: "1.4",
+            display: "flex",
+            flexDirection: "column",
+            gap: "2px"
+          }}>
+            <span style={{ color: "#fff", fontWeight: 600 }}>Important Note:</span>
+            <span>If this is your first sign in, the email and password you enter now will be used for all future logins. Please keep them safe.</span>
+          </div>
+
           <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: "100%", marginTop: "6px", height: "46px" }}>
             {loading ? (
               <Loader2 className="animate-spin" size={18} />
-            ) : isSignUp ? (
-              <>
-                <UserPlus size={18} /> Register Now
-              </>
             ) : (
               <>
                 <LogIn size={18} /> Enter Portal
