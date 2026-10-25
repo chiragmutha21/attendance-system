@@ -32,6 +32,9 @@ function OnboardingContent() {
   const [logoError, setLogoError] = useState("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successCompanyId, setSuccessCompanyId] = useState("");
+  const [attendanceMode, setAttendanceMode] = useState<"with_photo" | "without_photo">("with_photo");
+  const [geofenceMode, setGeofenceMode] = useState<"strict" | "flexible">("strict");
+  const [shiftStandard, setShiftStandard] = useState("8_hours");
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setLogoError("");
@@ -116,6 +119,9 @@ function OnboardingContent() {
           radius,
           logo: logoBase64,
           address,
+          attendanceMode,
+          geofenceMode,
+          shiftStandard,
         }),
       });
 
@@ -273,6 +279,65 @@ function OnboardingContent() {
 
               {error && <span className={styles.formError}>{error}</span>}
 
+              {/* Company Setup Questions */}
+              <div style={{
+                background: "rgba(139, 92, 246, 0.06)",
+                border: "1px solid rgba(139, 92, 246, 0.2)",
+                borderRadius: "12px",
+                padding: "18px",
+                display: "grid",
+                gap: "16px",
+                margin: "12px 0",
+              }}>
+                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#fff", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Sparkles size={16} color="var(--color-primary)" />
+                  Attendance Verification Configuration
+                </div>
+
+                {/* Question 1: Photo vs Without Photo */}
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Attendance Verification Mode</label>
+                  <select
+                    className="form-input"
+                    value={attendanceMode}
+                    onChange={(e) => setAttendanceMode(e.target.value as any)}
+                  >
+                    <option value="with_photo">📸 With Photo (AI Face Verification & Selfie Required)</option>
+                    <option value="without_photo">⚡ Without Photo (Fast 1-Tap QR & Mobile Verification)</option>
+                  </select>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px" }}>
+                    Select whether employees must take a selfie when scanning the QR code.
+                  </span>
+                </div>
+
+                {/* Question 2: GPS Enforcement */}
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Office Geofence Enforcement</label>
+                  <select
+                    className="form-input"
+                    value={geofenceMode}
+                    onChange={(e) => setGeofenceMode(e.target.value as any)}
+                  >
+                    <option value="strict">🔒 Strict GPS Geofence (Must be within office radius)</option>
+                    <option value="flexible">🌐 Flexible / Remote (Allowed outside radius with GPS logging)</option>
+                  </select>
+                </div>
+
+                {/* Question 3: Shift Hours */}
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Daily Standard Shift Hours</label>
+                  <select
+                    className="form-input"
+                    value={shiftStandard}
+                    onChange={(e) => setShiftStandard(e.target.value)}
+                  >
+                    <option value="8_hours">Standard 8 Hours / Day</option>
+                    <option value="9_hours">Standard 9 Hours / Day</option>
+                    <option value="flexible">Flexible Timing</option>
+                  </select>
+                </div>
+              </div>
+
               <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
                 <button type="button" className="btn btn-outline" onClick={fillOfficeLocation} style={{ flex: 1 }}>
                   Use My Location
@@ -284,6 +349,17 @@ function OnboardingContent() {
             </form>
           </div>
         )}
+
+        <footer style={{
+          marginTop: "36px",
+          padding: "16px 0",
+          textAlign: "center",
+          color: "var(--text-muted)",
+          fontSize: "0.8rem",
+          letterSpacing: "0.3px",
+        }}>
+          The product of Solution Planets
+        </footer>
       </main>
     </div>
   );

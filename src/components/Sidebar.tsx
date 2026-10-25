@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import {
   Users, MapPin, CheckCircle, XCircle,
   Sparkles, CalendarDays, Gift, Menu, X,
-  ShieldCheck, Building2, KeyRound, Image
+  ShieldCheck, Building2, KeyRound, Image,
+  QrCode, Clock, CreditCard
 } from "lucide-react";
 import styles from "../app/admin/admin.module.css";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
@@ -18,7 +19,7 @@ interface Company {
 }
 
 interface SidebarProps {
-  activeKey: "dashboard" | "checkin" | "checkout" | "attendance" | "employees" | "sandbox" | "festivals" | "superadmin" | "company-admin" | "credentials" | "branches" | "company-logos";
+  activeKey: "dashboard" | "checkin" | "checkout" | "attendance" | "employees" | "sandbox" | "festivals" | "superadmin" | "company-admin" | "credentials" | "branches" | "company-logos" | "qr" | "timesheet" | "plan-requests";
   onCompanyChange?: (companyId: string) => void;
   isSuperAdmin?: boolean;
 }
@@ -105,6 +106,8 @@ export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: Si
 
   const adminLinks = [
     { key: "dashboard", href: "/admin", icon: <MapPin size={18} />, label: "Dashboard" },
+    { key: "qr", href: "/admin/qr", icon: <QrCode size={18} />, label: "Direct QR Station" },
+    { key: "timesheet", href: "/admin/timesheet", icon: <Clock size={18} />, label: "Timesheet & Hours" },
     { key: "branches", href: "/admin/branches", icon: <Building2 size={18} />, label: "Branches" },
     { key: "checkin", href: "/admin/checkin", icon: <CheckCircle size={18} />, label: "Check-In Logs" },
     { key: "checkout", href: "/admin/checkout", icon: <XCircle size={18} />, label: "Check-Out Logs" },
@@ -116,6 +119,7 @@ export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: Si
 
   const superAdminLinks = [
     { key: "superadmin", href: "/superadmin", icon: <ShieldCheck size={18} />, label: "Super Admin" },
+    { key: "plan-requests", href: "/superadmin/plan-requests", icon: <CreditCard size={18} />, label: "Plan Requests" },
     { key: "company-admin", href: "/superadmin/company-admin", icon: <Building2 size={18} />, label: "Company Details" },
     { key: "company-logos", href: "/superadmin/company-logos", icon: <Image size={18} />, label: "Logo Submissions" },
   ];
@@ -126,10 +130,13 @@ export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: Si
     <>
       {/* Mobile Top Header */}
       <div className={styles.mobileHeader}>
-        <div className={styles.mobileHeaderBrand}>
-          <Sparkles size={20} color="var(--color-primary)" style={{ filter: "drop-shadow(0 0 6px var(--color-primary-glow))" }} />
-          <span className="glow-text-purple">SmartOffice</span>
-        </div>
+        <Link href="/" className={styles.mobileHeaderBrand}>
+          <img
+            src="/images/presivox-logo.png"
+            alt="Presivox"
+            style={{ width: "135px", height: "auto", display: "block" }}
+          />
+        </Link>
         <button
           className={styles.hamburgerBtn}
           onClick={() => setMobileOpen(true)}
@@ -157,8 +164,13 @@ export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: Si
         </button>
 
         <div className={styles.brand}>
-          <Sparkles className={styles.brandIcon} size={22} />
-          <span className="glow-text-purple">SmartOffice</span>
+          <Link href="/" style={{ display: "block", textDecoration: "none" }}>
+            <img
+              src="/images/presivox-logo.png"
+              alt="Presivox"
+              style={{ width: "175px", height: "auto", display: "block" }}
+            />
+          </Link>
         </div>
 
         {!isSuperAdmin && companies.length > 0 && (
@@ -226,6 +238,17 @@ export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: Si
             </div>
           </div>
         )}
+        <div style={{
+          marginTop: "auto",
+          paddingTop: "14px",
+          borderTop: "1px solid var(--border-light)",
+          textAlign: "center",
+          fontSize: "0.76rem",
+          color: "var(--blue)",
+          fontWeight: 750
+        }}>
+          The product of Solution Planets
+        </div>
       </aside>
     </>
   );

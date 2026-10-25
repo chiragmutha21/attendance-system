@@ -63,8 +63,22 @@ function LoginContent() {
 
     try {
       const emailTrimmed = email.trim();
+      const emailLower = emailTrimmed.toLowerCase();
       
-      // Call backend helper to ensure user credentials exist and password is confirmed
+      // If SuperAdmin
+      if (emailLower === "chiragmutha31@gmail.com" || emailLower === "superadmin@example.com") {
+        const res = await fetch("/api/superadmin/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: emailTrimmed, password }),
+        });
+        if (res.ok) {
+          window.location.href = "/superadmin";
+          return;
+        }
+      }
+
+      // Call backend helper to verify approval and plan status
       const helperRes = await fetch("/api/auth/login-helper", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -72,30 +86,34 @@ function LoginContent() {
       });
 
       const helperData = await helperRes.json();
-
       if (!helperRes.ok) {
-        setError(helperData.error || "Failed to verify login context");
+        setError(helperData.error || "Login failed. Please verify credentials or approval status.");
         setLoading(false);
         return;
       }
 
-      // Perform standard sign in now that auth user has been verified/synced
-      const supabase = getSupabaseBrowserClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: emailTrimmed,
-        password,
-      });
-
-      if (signInError) {
-        setError(signInError.message);
-        setLoading(false);
-        return;
+      // If approved, store their specific company ID, active plan, and mode
+      if (helperData.companyId) {
+        localStorage.setItem("selectedCompanyId", helperData.companyId);
       }
+      if (helperData.planId) {
+        localStorage.setItem("activePlanId", helperData.planId);
+      }
+      if (helperData.attendanceMode) {
+        localStorage.setItem("attendanceMode", helperData.attendanceMode);
+      }
+      if (helperData.employeeLimit) {
+        localStorage.setItem("employeeLimit", String(helperData.employeeLimit));
+      }
+
+      localStorage.setItem("local_admin_session", "1");
+      document.cookie = "local_admin_session=admin; path=/; max-age=86400";
 
       const next = searchParams.get("next") || "";
-      window.location.href = `/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ""}`;
+      window.location.href = next || "/admin";
+      return;
     } catch (err: any) {
-      setError(err.message || "Failed to authenticate");
+      setError(err.message || "Failed to log in");
       setLoading(false);
     }
   };
@@ -107,41 +125,30 @@ function LoginContent() {
       alignItems: "center",
       justifyContent: "center",
       padding: "24px",
-      background: "radial-gradient(circle at center, #111322 0%, #06070a 100%)",
+      background: "radial-gradient(circle at 80% 20%, #dce7ff 0, transparent 40%), linear-gradient(140deg, #f7faff, #ffffff)",
     }}>
-      <div className="glass-panel" style={{ width: "100%", maxWidth: "440px", padding: "40px 32px", position: "relative", overflow: "hidden" }}>
-        {/* Decorative background glow inside the card */}
-        <div style={{
-          position: "absolute",
-          top: "-50px",
-          left: "-50px",
-          width: "150px",
-          height: "150px",
-          borderRadius: "50%",
-          background: "var(--color-primary-glow)",
-          filter: "blur(50px)",
-          opacity: 0.5,
-          pointerEvents: "none"
-        }} />
+      <div style={{
+        width: "100%",
+        maxWidth: "460px",
+        padding: "44px 36px",
+        background: "#ffffff",
+        border: "1px solid #dfe6f0",
+        borderRadius: "24px",
+        boxShadow: "0 20px 60px rgba(53, 102, 236, 0.1)",
+        position: "relative",
+        textAlign: "center"
+      }}>
         
         <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px" }}>
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "54px",
-            height: "54px",
-            borderRadius: "14px",
-            background: "linear-gradient(135deg, var(--color-primary), var(--color-secondary))",
-            boxShadow: "0 0 20px rgba(139, 92, 246, 0.4)"
-          }}>
-            <Sparkles size={26} color="#fff" />
-          </div>
+          <img
+            src="/images/presivox-logo.png"
+            alt="Presivox Logo"
+            style={{ width: "230px", height: "auto", display: "block" }}
+          />
         </div>
         
-        <h1 className="glow-text-purple" style={{ color: "#fff", fontSize: "1.85rem", fontWeight: 800, marginBottom: "6px" }}>SmartOffice</h1>
-        <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: "32px" }}>
-          Workforce & Attendance Tracking Portal
+        <p style={{ color: "var(--text-secondary)", fontSize: "0.92rem", marginBottom: "28px" }}>
+          Admin &amp; Workforce Attendance Portal
         </p>
 
         {/* Email & Password Authentication Form */}
@@ -215,38 +222,36 @@ function LoginContent() {
           textTransform: "uppercase",
           letterSpacing: "1px"
         }}>
-          <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.06)" }} />
+          <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }} />
           <span style={{ padding: "0 10px" }}>or continue with</span>
-          <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.06)" }} />
+          <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }} />
         </div>
 
         {/* Google Authentication Button */}
         <button
           type="button"
-          className="btn btn-outline"
+          className="btn btn-secondary"
           onClick={signInWithGoogle}
           disabled={loading}
           style={{
             width: "100%",
             height: "46px",
-            background: "rgba(255, 255, 255, 0.02)",
-            border: "1px solid var(--border-light)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             gap: "10px",
-            color: "#f3f4f6",
             fontSize: "0.92rem",
-            fontWeight: 600
+            fontWeight: 650
           }}
         >
           {loading ? (
             <Loader2 className="animate-spin" size={18} />
           ) : (
-            <ShieldCheck size={18} color="var(--color-secondary)" />
+            <ShieldCheck size={18} color="var(--blue)" />
           )}
-          Google Identity
+          Sign in with Google
         </button>
+
 
         {/* Feedback Messages */}
         {error && (
@@ -278,6 +283,19 @@ function LoginContent() {
             {message}
           </div>
         )}
+
+        {/* Solution Planets Footer Branding */}
+        <div style={{
+          marginTop: "28px",
+          paddingTop: "14px",
+          borderTop: "1px solid #e2e8f0",
+          textAlign: "center",
+          fontSize: "0.82rem",
+          color: "var(--blue)",
+          fontWeight: 750
+        }}>
+          The product of Solution Planets
+        </div>
       </div>
     </div>
   );

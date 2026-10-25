@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { useParams } from "next/navigation";
-import { Camera, MapPin, CheckCircle, XCircle, RefreshCw, Loader2, Sparkles, PhoneCall } from "lucide-react";
+import { useEffect, useState, useRef, Suspense } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { Camera, MapPin, CheckCircle, XCircle, RefreshCw, Loader2, Sparkles, PhoneCall, QrCode } from "lucide-react";
 import styles from "@/app/attendance/[token]/attendance.module.css";
+import { processImageWithWhiteBackground } from "@/lib/imageProcessing";
 
 interface Employee {
   employeeId: string;
@@ -15,8 +17,18 @@ interface Employee {
 }
 
 export default function CheckOutPage() {
+  return (
+    <Suspense fallback={<div className="flex-center" style={{ minHeight: "100vh", color: "#fff" }}><Loader2 className="animate-spin" size={32} /></div>}>
+      <CheckOutContent />
+    </Suspense>
+  );
+}
+
+function CheckOutContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const companyCode = params?.companyCode as string;
+  const queryCompanyId = searchParams?.get("companyId") || "";
 
   const [mobileNumber, setMobileNumber] = useState("");
   const [phoneVerified, setPhoneVerified] = useState(false);
@@ -146,6 +158,27 @@ export default function CheckOutPage() {
     };
   }, [successData]);
 
+  // Auto resolve company from QR code query param or slug
+  useEffect(() => {
+    const resolveFromQR = async () => {
+      const targetId = queryCompanyId;
+      if (!targetId) return;
+      try {
+        setResolvingCompany(true);
+        const res = await fetch(`/api/admin/companies/resolve?companyId=${encodeURIComponent(targetId)}`);
+        const data = await res.json();
+        if (data.success && data.company) {
+          setCompany(data.company);
+        }
+      } catch (err) {
+        console.warn("Failed to auto resolve company from QR:", err);
+      } finally {
+        setResolvingCompany(false);
+      }
+    };
+    resolveFromQR();
+  }, [queryCompanyId]);
+
   // Mobile number verification
   const handleVerifyPhone = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,7 +192,8 @@ export default function CheckOutPage() {
     }
 
     try {
-      const companyIdParam = company ? `&companyId=${encodeURIComponent(company.id)}` : "";
+      const activeCompanyId = queryCompanyId || company?.id || "";
+      const companyIdParam = activeCompanyId ? `&companyId=${encodeURIComponent(activeCompanyId)}` : "";
       const res = await fetch(`/api/attendance/fixed/verify-phone?phone=${encodeURIComponent(mobileNumber)}${companyIdParam}`);
       const data = await res.json();
 
@@ -325,9 +359,17 @@ export default function CheckOutPage() {
 
       ctx.drawImage(video, sx, sy, sourceSize, sourceSize, 0, 0, outputSize, outputSize);
 
-      const base64Image = canvas.toDataURL("image/jpeg", 0.95);
-      setCapturedSelfie(base64Image);
+      const rawBase64 = canvas.toDataURL("image/jpeg", 0.95);
       stopCamera();
+
+      // Automatically whiten background for pristine face-api recognition
+      processImageWithWhiteBackground(rawBase64, { quality: 0.95, enhanceFacialContrast: true })
+        .then((whitened) => {
+          setCapturedSelfie(whitened);
+        })
+        .catch(() => {
+          setCapturedSelfie(rawBase64);
+        });
     }
   };
 
@@ -336,8 +378,13 @@ export default function CheckOutPage() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = async () => {
-        const resized = await resizeImageTo400(reader.result as string);
-        setCapturedSelfie(resized);
+        try {
+          const whitened = await processImageWithWhiteBackground(reader.result as string, { quality: 0.95, enhanceFacialContrast: true });
+          setCapturedSelfie(whitened);
+        } catch {
+          const resized = await resizeImageTo400(reader.result as string);
+          setCapturedSelfie(resized);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -429,14 +476,14 @@ export default function CheckOutPage() {
 
     gpsWatchIdRef.current = navigator.geolocation.watchPosition(handleSuccess, handleError, {
       enableHighAccuracy: true,
-      timeout: 10000,
+      timeout: 25000,
       maximumAge: 0,
     });
 
     // Safety timeout: stop loading spinner if GPS lock is slow
     setTimeout(() => {
       setGpsLoading(false);
-    }, 6000);
+    }, 15000);
   };
 
   const submitCheckOut = async () => {
@@ -641,14 +688,19 @@ export default function CheckOutPage() {
         <div className={styles.glowBlobSecondary}></div>
         <div className={`${styles.card} glass-panel`}>
           <div className={styles.logo}>
-            <Sparkles className={styles.logoIcon} size={24} />
-            <span className="glow-text-cyan">SMART OFFICE</span>
+            <Link href="/" style={{ display: "inline-block", margin: "0 auto" }}>
+              <img
+                src="/images/presivox-logo.png"
+                alt="Presivox"
+                style={{ width: "210px", height: "auto", display: "block" }}
+              />
+            </Link>
           </div>
           <div className={styles.header}>
             <h1 className={styles.title}>
               {company ? `${company.name} Check-Out` : "Check-Out Portal"}
             </h1>
-            <p className={styles.subtitle}>Enter your registered WhatsApp number to verify</p>
+            <p className={styles.subtitle}>Enter your registered mobile number to verify</p>
           </div>
 
           <form onSubmit={handleVerifyPhone} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -802,8 +854,13 @@ export default function CheckOutPage() {
       <div className={`${styles.card} glass-panel`}>
         {/* Header */}
         <div className={styles.logo}>
-          <Sparkles className={styles.logoIcon} size={20} />
-          <span className="glow-text-cyan">ATTENDANCE PORTAL</span>
+          <Link href="/" style={{ display: "inline-block", margin: "0 auto" }}>
+            <img
+              src="/images/presivox-logo.png"
+              alt="Presivox"
+              style={{ width: "200px", height: "auto", display: "block" }}
+            />
+          </Link>
         </div>
 
         <div className={styles.header}>
@@ -1044,6 +1101,18 @@ export default function CheckOutPage() {
           </div>
         </div>
       )}
+
+      {/* Solution Planets Footer Branding */}
+      <footer style={{
+        marginTop: "32px",
+        padding: "16px 0",
+        textAlign: "center",
+        fontSize: "0.82rem",
+        color: "rgba(255, 255, 255, 0.45)",
+        letterSpacing: "0.4px",
+      }}>
+        The product of Solution Planets
+      </footer>
     </div>
   );
 }

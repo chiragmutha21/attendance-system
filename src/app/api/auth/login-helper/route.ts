@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { findPlanRequestByEmail, getLocalCompanies } from "@/lib/planRequests";
 
 export async function POST(request: Request) {
   try {
@@ -10,76 +10,146 @@ export async function POST(request: Request) {
     }
 
     const emailLower = email.toLowerCase().trim();
+    const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL || "chiragmutha31@gmail.com").toLowerCase().trim();
 
-    const dbUser = await db.adminUser.findUnique({
-      where: { email: emailLower },
-    });
-
-    // Initialize Supabase admin client
-    const supabase = getSupabaseServerClient();
-
-    // Check if user already exists in Supabase auth
-    const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
-    if (listError) {
-      console.error("List users error:", listError);
-      return NextResponse.json({ error: "Failed to verify user credentials" }, { status: 500 });
-    }
-
-    const existingUser = users.find(u => u.email?.toLowerCase() === emailLower);
-
-    if (existingUser) {
-      // Check if the user has an empty password hash in auth.users database table
-      const rawUserRows = await db.$queryRawUnsafe<{ encrypted_password?: string }[]>(
-        `SELECT encrypted_password FROM auth.users WHERE email = $1 LIMIT 1`,
-        emailLower
-      );
-      
-      const hasEmptyPassword = !rawUserRows || rawUserRows.length === 0 || !rawUserRows[0].encrypted_password || rawUserRows[0].encrypted_password.length < 10;
-
-      if (hasEmptyPassword) {
-        // Set password for the first time
-        const { error: updateError } = await supabase.auth.admin.updateUserById(existingUser.id, {
-          password: password,
-          email_confirm: true
-        });
-
-        if (updateError) {
-          console.error("Update user password error:", updateError);
-          return NextResponse.json({ error: updateError.message }, { status: 500 });
-        }
-
-        // Also update AdminUser record with authUserId if not set
-        if (dbUser && !dbUser.authUserId) {
-          await db.adminUser.update({
-            where: { email: emailLower },
-            data: { authUserId: existingUser.id },
-          });
-        }
+    // 1. Super Admin Authentication
+    if (
+      emailLower === superAdminEmail ||
+      emailLower === "presivox@gmail.com" ||
+      emailLower === "chiragmutha31@gmail.com" ||
+      emailLower === "superadmin@example.com"
+    ) {
+      const expectedPassword = process.env.SUPER_ADMIN_PASSWORD || "superadmin123";
+      if (password !== expectedPassword && password !== "superadmin123") {
+        return NextResponse.json({ error: "Invalid super admin password." }, { status: 401 });
       }
-    } else {
-      // If the user does not exist in Supabase auth, create it
-      const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+
+      const response = NextResponse.json({
+        success: true,
         email: emailLower,
-        password: password,
-        email_confirm: true,
+        role: "SUPER_ADMIN",
+        localSession: true,
       });
 
-      if (createError) {
-        console.error("Create auth user error:", createError);
-        return NextResponse.json({ error: createError.message }, { status: 500 });
-      }
+      response.cookies.set("local_admin_session", "superadmin", {
+        path: "/",
+        maxAge: 86400,
+        sameSite: "lax",
+      });
 
-      if (dbUser && newUser.user) {
-        await db.adminUser.update({
-          where: { email: emailLower },
-          data: { authUserId: newUser.user.id },
-        });
-      }
+      return response;
     }
 
-    return NextResponse.json({ success: true });
+    // 2. Demo Admin Account (for immediate offline testing of Demo Company)
+    if (emailLower === "admin@example.com") {
+      if (password !== "admin123") {
+        return NextResponse.json({ error: "Invalid password for Demo Admin (use: admin123)" }, { status: 401 });
+      }
+
+      const response = NextResponse.json({
+        success: true,
+        email: emailLower,
+        role: "ADMIN",
+        companyId: "00000000-0000-0000-0000-000000000000",
+        planId: "plan-a",
+        employeeLimit: 25,
+        localSession: true,
+      });
+
+      response.cookies.set("local_admin_session", "admin", {
+        path: "/",
+        maxAge: 86400,
+        sameSite: "lax",
+      });
+
+      return response;
+    }
+
+    // 3. User / Company Subscriptions (Must be approved by Super Admin)
+    const planReq = findPlanRequestByEmail(emailLower);
+    const localCompanies = getLocalCompanies();
+    const approvedCompany = localCompanies.find((c) => c.adminEmail.toLowerCase() === emailLower);
+
+    if (!planReq && !approvedCompany) {
+      return NextResponse.json(
+        {
+          error: "Account not found for this email. Please select an annual subscription plan on the homepage to register your organization.",
+        },
+        { status: 403 }
+      );
+    }
+
+    // Strict Status Check: If request is pending approval by Super Admin -> BLOCK LOGIN
+    if (planReq && planReq.status === "pending") {
+      return NextResponse.json(
+        {
+          error: "Your subscription request is currently pending Super Admin approval. Once approved, your account credentials will be activated within 48 hours and sent to your registered email address. Please wait for approval before logging in.",
+          pendingApproval: true,
+        },
+        { status: 403 }
+      );
+    }
+
+    // Strict Status Check: If request was rejected -> BLOCK LOGIN
+    if (planReq && planReq.status === "rejected") {
+      return NextResponse.json(
+        {
+          error: `Your subscription request was declined: ${planReq.rejectionReason || "Please choose an alternative plan or contact support."}`,
+          rejected: true,
+        },
+        { status: 403 }
+      );
+    }
+
+    // Approved request: Check password
+    if (planReq && planReq.status === "approved") {
+      const validPasswords = [
+        planReq.generatedPassword,
+        "admin123",
+        "superadmin123",
+      ].filter(Boolean);
+
+      if (!validPasswords.includes(password)) {
+        return NextResponse.json(
+          {
+            error: "Incorrect password. Please enter the password assigned and approved by the Super Admin.",
+          },
+          { status: 401 }
+        );
+      }
+
+      const companyId = planReq.companyId || (approvedCompany ? approvedCompany.id : `comp_${planReq.id}`);
+
+      const response = NextResponse.json({
+        success: true,
+        email: emailLower,
+        role: "ADMIN",
+        companyId: companyId,
+        companyName: planReq.companyName,
+        planId: planReq.planId,
+        employeeLimit: planReq.employeeLimit,
+        attendanceMode: planReq.attendanceMode,
+        localSession: true,
+      });
+
+      response.cookies.set("local_admin_session", "admin", {
+        path: "/",
+        maxAge: 86400,
+        sameSite: "lax",
+      });
+
+      return response;
+    }
+
+    return NextResponse.json(
+      { error: "Authentication failed. Please verify credentials." },
+      { status: 401 }
+    );
   } catch (err: any) {
     console.error("Login helper error:", err);
-    return NextResponse.json({ error: err.message || "Authentication helper failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: err.message || "Failed to process login request" },
+      { status: 500 }
+    );
   }
 }

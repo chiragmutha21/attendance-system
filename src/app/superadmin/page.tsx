@@ -71,6 +71,9 @@ export default function SuperAdminPage() {
   const [longitude, setLongitude] = useState("");
   const [radius, setRadius] = useState("200");
   const [address, setAddress] = useState("");
+  const [attendanceMode, setAttendanceMode] = useState<"with_photo" | "without_photo">("with_photo");
+  const [geofenceMode, setGeofenceMode] = useState<"strict" | "flexible">("strict");
+  const [shiftStandard, setShiftStandard] = useState("8_hours");
 
   const fetchCompanies = async () => {
     try {
@@ -203,6 +206,9 @@ export default function SuperAdminPage() {
           longitude,
           radius,
           address,
+          attendanceMode,
+          geofenceMode,
+          shiftStandard,
         }),
       });
 
@@ -491,7 +497,7 @@ export default function SuperAdminPage() {
                   <input className="form-input" required value={countryCode} onChange={(event) => setCountryCode(event.target.value.replace(/[^\d+]/g, ""))} />
                 </div>
                 <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>Admin WhatsApp Number</label>
+                  <label className={styles.formLabel}>Admin Mobile Number</label>
                   <input className="form-input" required value={adminPhone} onChange={(event) => setAdminPhone(event.target.value.replace(/[^\d+]/g, ""))} />
                 </div>
               </div>
@@ -518,6 +524,58 @@ export default function SuperAdminPage() {
                 </div>
               </div>
 
+              {/* Company Setup Questions */}
+              <div style={{
+                background: "rgba(139, 92, 246, 0.08)",
+                border: "1px solid rgba(139, 92, 246, 0.2)",
+                borderRadius: "10px",
+                padding: "16px",
+                display: "grid",
+                gap: "14px",
+                margin: "10px 0",
+              }}>
+                <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#fff" }}>
+                  Verification Rules
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Attendance Verification Mode</label>
+                  <select
+                    className="form-input"
+                    value={attendanceMode}
+                    onChange={(e) => setAttendanceMode(e.target.value as any)}
+                  >
+                    <option value="with_photo">📸 With Photo (AI Face Verification Required)</option>
+                    <option value="without_photo">⚡ Without Photo (Fast QR / Mobile Attendance)</option>
+                  </select>
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Office Geofence Enforcement</label>
+                  <select
+                    className="form-input"
+                    value={geofenceMode}
+                    onChange={(e) => setGeofenceMode(e.target.value as any)}
+                  >
+                    <option value="strict">🔒 Strict GPS Geofence (Locked to radius)</option>
+                    <option value="flexible">🌐 Flexible / Remote (Logged with location)</option>
+                  </select>
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Standard Shift Duration</label>
+                  <select
+                    className="form-input"
+                    value={shiftStandard}
+                    onChange={(e) => setShiftStandard(e.target.value)}
+                  >
+                    <option value="8_hours">Standard 8 Hours / Day</option>
+                    <option value="9_hours">Standard 9 Hours / Day</option>
+                    <option value="flexible">Flexible Timing</option>
+                  </select>
+                </div>
+              </div>
+
               {error && <span className={styles.formError}>{error}</span>}
 
               <div style={{ display: "flex", gap: "12px", marginTop: "16px" }}>
@@ -532,6 +590,18 @@ export default function SuperAdminPage() {
           </div>
         </div>
       )}
+      {/* Solution Planets Footer Branding */}
+      <footer style={{
+        marginTop: "48px",
+        padding: "24px 0",
+        borderTop: "1px solid rgba(255, 255, 255, 0.05)",
+        textAlign: "center",
+        color: "var(--text-muted)",
+        fontSize: "0.82rem",
+        letterSpacing: "0.3px",
+      }}>
+        The product of Solution Planets
+      </footer>
       </div>
   );
 }

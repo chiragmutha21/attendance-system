@@ -10,6 +10,7 @@ import AuthGate from "@/components/AuthGate";
 import Sidebar from "@/components/Sidebar";
 import styles from "../admin.module.css";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
+import { processImageWithWhiteBackground } from "@/lib/imageProcessing";
 
 interface Company {
   id: string;
@@ -47,6 +48,7 @@ export default function EmployeeRegistry() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
+  const [photoProcessing, setPhotoProcessing] = useState(false);
 
   // Form states
   const [formEmployeeId, setFormEmployeeId] = useState("");
@@ -65,7 +67,7 @@ export default function EmployeeRegistry() {
   const [formImagePreview, setFormImagePreview] = useState<string | null>(null);
   const [formImageBase64, setFormImageBase64] = useState<string | null>(null);
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
@@ -73,10 +75,24 @@ export default function EmployeeRegistry() {
         return;
       }
       const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setFormImagePreview(base64String);
-        setFormImageBase64(base64String);
+      reader.onloadend = async () => {
+        const rawBase64 = reader.result as string;
+        setPhotoProcessing(true);
+        try {
+          // Automatically convert background to clean white & enhance face contrast
+          const whiteBgImage = await processImageWithWhiteBackground(rawBase64, {
+            enhanceFacialContrast: true,
+            quality: 0.94,
+          });
+          setFormImagePreview(whiteBgImage);
+          setFormImageBase64(whiteBgImage);
+        } catch (err) {
+          console.error("Auto white background failed, using original:", err);
+          setFormImagePreview(rawBase64);
+          setFormImageBase64(rawBase64);
+        } finally {
+          setPhotoProcessing(false);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -155,6 +171,12 @@ export default function EmployeeRegistry() {
   };
 
   const openAddModal = () => {
+    if (selectedCompany && selectedCompany.employeeLimit && selectedCompany.employeeLimit < 999990) {
+      if (employees.length >= selectedCompany.employeeLimit) {
+        alert(`Plan employee limit reached! Your current plan allows maximum ${selectedCompany.employeeLimit} employees (${employees.length}/${selectedCompany.employeeLimit} active). You cannot add more than ${selectedCompany.employeeLimit} employees on this plan. Please upgrade your plan.`);
+        return;
+      }
+    }
     setEditEmployee(null);
     setFormEmployeeId("");
     setFormFullName("");
@@ -308,9 +330,42 @@ export default function EmployeeRegistry() {
             <h1 className={styles.headerTitle}>Employee Registry</h1>
             <p className={styles.headerSubtitle}>Manage staff authorization records & WhatsApp numbers</p>
           </div>
-          <button onClick={openAddModal} className="btn btn-primary">
-            <Plus size={16} /> Add Employee
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            {selectedCompany && (
+              <div style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 14px",
+                borderRadius: "8px",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                background: (selectedCompany.employeeLimit && selectedCompany.employeeLimit < 999990 && employees.length >= selectedCompany.employeeLimit)
+                  ? "rgba(239, 68, 68, 0.15)"
+                  : "rgba(139, 92, 246, 0.12)",
+                border: (selectedCompany.employeeLimit && selectedCompany.employeeLimit < 999990 && employees.length >= selectedCompany.employeeLimit)
+                  ? "1px solid rgba(239, 68, 68, 0.3)"
+                  : "1px solid rgba(139, 92, 246, 0.25)",
+                color: (selectedCompany.employeeLimit && selectedCompany.employeeLimit < 999990 && employees.length >= selectedCompany.employeeLimit)
+                  ? "#fca5a5"
+                  : "var(--color-primary-light, #c4b5fd)",
+              }}>
+                <Users size={15} />
+                <span>
+                  {employees.length} / {selectedCompany.employeeLimit >= 999990 ? "Unlimited" : selectedCompany.employeeLimit} Employees
+                  {selectedCompany.employeeLimit < 999990 && employees.length >= selectedCompany.employeeLimit ? " (Limit Reached)" : " (Plan Limit)"}
+                </span>
+              </div>
+            )}
+            <button 
+              onClick={openAddModal} 
+              className="btn btn-primary"
+              disabled={Boolean(selectedCompany && selectedCompany.employeeLimit && selectedCompany.employeeLimit < 999990 && employees.length >= selectedCompany.employeeLimit)}
+              style={selectedCompany && selectedCompany.employeeLimit && selectedCompany.employeeLimit < 999990 && employees.length >= selectedCompany.employeeLimit ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+            >
+              <Plus size={16} /> Add Employee
+            </button>
+          </div>
         </div>
 
         {/* Registry Card */}
@@ -407,6 +462,18 @@ export default function EmployeeRegistry() {
             </div>
           )}
         </div>
+
+        <footer style={{
+          marginTop: "48px",
+          padding: "24px 0",
+          borderTop: "1px solid rgba(255, 255, 255, 0.05)",
+          textAlign: "center",
+          color: "var(--text-muted)",
+          fontSize: "0.82rem",
+          letterSpacing: "0.3px",
+        }}>
+          The product of Solution Planets
+        </footer>
       </main>
 
       {/* Add / Edit Modal Overlay */}
@@ -484,8 +551,18 @@ export default function EmployeeRegistry() {
                       onChange={handlePhotoChange}
                     />
                     <span className={styles.formHint} style={{ color: "var(--text-secondary)", lineHeight: "1.4" }}>
-                      Upload a clear, front-facing profile photo. This photo will be compared against the check-in selfie.
+                      Upload a front-facing profile photo. Background is automatically whitened to pure white (#FFF) for optimal face matching.
                     </span>
+                    {photoProcessing && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--color-primary)", fontSize: "0.78rem", marginTop: "6px" }}>
+                        <Loader2 className="animate-spin" size={14} /> Auto-whitening background & enhancing selfie...
+                      </div>
+                    )}
+                    {formImagePreview && !photoProcessing && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--color-success)", fontSize: "0.75rem", marginTop: "4px" }}>
+                        <CheckCircle size={13} /> Clean white background verified
+                      </div>
+                    )}
                     {formErrors.registeredFaceImage && <span className={styles.formError} style={{ display: "block", marginTop: "6px", color: "var(--color-danger)" }}>{formErrors.registeredFaceImage}</span>}
                   </div>
                 </div>

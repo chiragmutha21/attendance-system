@@ -2,9 +2,11 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import QRCode from "qrcode";
 import { 
   Users, MapPin, CheckCircle, XCircle, AlertTriangle, ShieldAlert,
-  Settings, Image, Search, Filter, Download, ExternalLink, Menu, Sparkles, CalendarDays, X, Plus, Loader2
+  Settings, Image, Search, Filter, Download, ExternalLink, Menu, Sparkles, CalendarDays, X, Plus, Loader2, Activity,
+  QrCode, Copy, Check
 } from "lucide-react";
 import AuthGate from "@/components/AuthGate";
 import Sidebar from "@/components/Sidebar";
@@ -104,6 +106,38 @@ export default function AdminDashboard() {
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState("");
   const [logoSuccessMsg, setLogoSuccessMsg] = useState("");
+
+  // Dedicated QR Code State for Dashboard
+  const [inQrPreview, setInQrPreview] = useState<string>("");
+  const [outQrPreview, setOutQrPreview] = useState<string>("");
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
+
+  useEffect(() => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+    const compId = selectedCompanyId || "00000000-0000-0000-0000-000000000000";
+    const inUrl = `${origin}/checkin?companyId=${compId}`;
+    const outUrl = `${origin}/checkout?companyId=${compId}`;
+
+    QRCode.toDataURL(inUrl, {
+      width: 260,
+      margin: 1,
+      color: { dark: "#10b981", light: "#ffffff" },
+      errorCorrectionLevel: "H",
+    }).then(setInQrPreview).catch(console.error);
+
+    QRCode.toDataURL(outUrl, {
+      width: 260,
+      margin: 1,
+      color: { dark: "#ef4444", light: "#ffffff" },
+      errorCorrectionLevel: "H",
+    }).then(setOutQrPreview).catch(console.error);
+  }, [selectedCompanyId]);
+
+  const copyQrLink = (url: string, label: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedLink(label);
+    setTimeout(() => setCopiedLink(null), 2500);
+  };
 
   const checkCompanyLogo = async (companyId: string) => {
     try {
@@ -470,9 +504,17 @@ export default function AdminDashboard() {
             <h1 className={styles.headerTitle}>Overview Dashboard</h1>
             <p className={styles.headerSubtitle}>Real-time employee check-in logs & radius tracking</p>
           </div>
-          <button onClick={exportToCSV} disabled={records.length === 0} className="btn btn-primary">
-            <Download size={16} /> Export CSV
-          </button>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <Link href="/admin/qr" className="btn btn-outline" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <Sparkles size={16} color="var(--color-secondary)" /> Direct QR Codes
+            </Link>
+            <Link href="/admin/timesheet" className="btn btn-outline" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <Activity size={16} color="var(--color-primary)" /> Timesheet & Hours
+            </Link>
+            <button onClick={exportToCSV} disabled={records.length === 0} className="btn btn-primary">
+              <Download size={16} /> Export CSV
+            </button>
+          </div>
         </div>
 
         {/* Stats Grid */}
@@ -499,6 +541,157 @@ export default function AdminDashboard() {
             <div className={styles.statValue} style={{ color: "var(--color-danger)" }}>{todayOutside}</div>
           </div>
         </section>
+
+        {/* Company QR Terminals (IN & OUT) */}
+        <div className={`${styles.contentCard} glass-panel`} style={{ marginBottom: "24px" }}>
+          <div className={styles.cardHeader} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+            <div>
+              <h2 className={styles.cardTitle} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <QrCode size={20} color="var(--blue)" /> Company QR Terminals (IN & OUT)
+              </h2>
+              <p style={{ fontSize: "0.82rem", color: "var(--text-secondary)", margin: 0, marginTop: "2px" }}>
+                Employees scan these dedicated codes from mobile camera. Locked to your company ID.
+              </p>
+            </div>
+            <Link href="/admin/qr" className="btn btn-primary" style={{ padding: "8px 16px", fontSize: "0.85rem" }}>
+              <Sparkles size={14} /> Fullscreen QR Standee
+            </Link>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px", marginTop: "16px" }}>
+            {/* IN Terminal */}
+            <div style={{
+              background: "#ffffff",
+              border: "1.5px solid #10b981",
+              borderRadius: "16px",
+              padding: "20px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              boxShadow: "0 4px 16px rgba(16, 185, 129, 0.08)"
+            }}>
+              <span style={{
+                background: "rgba(16, 185, 129, 0.12)",
+                color: "#059669",
+                fontSize: "0.78rem",
+                fontWeight: 700,
+                padding: "4px 12px",
+                borderRadius: "20px",
+                marginBottom: "14px",
+                letterSpacing: "0.5px"
+              }}>
+                CHECK-IN TERMINAL (IN)
+              </span>
+
+              {inQrPreview ? (
+                <img 
+                  src={inQrPreview} 
+                  alt="Check-In QR" 
+                  style={{ width: "180px", height: "180px", borderRadius: "10px", border: "1px solid #e5e7eb" }} 
+                />
+              ) : (
+                <div style={{ width: "180px", height: "180px", background: "#f3f4f6", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Loader2 size={24} className="animate-spin" />
+                </div>
+              )}
+
+              <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", margin: "10px 0 14px", maxWidth: "240px", wordBreak: "break-all" }}>
+                {typeof window !== "undefined" ? window.location.origin : ""}/checkin?companyId={selectedCompanyId || "default"}
+              </p>
+
+              <div style={{ display: "flex", gap: "8px", width: "100%", justifyContent: "center" }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ flex: 1, padding: "8px 12px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+                  onClick={() => {
+                    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+                    copyQrLink(`${origin}/checkin?companyId=${selectedCompanyId || "00000000-0000-0000-0000-000000000000"}`, "in");
+                  }}
+                >
+                  {copiedLink === "in" ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
+                  {copiedLink === "in" ? "Copied!" : "Copy Link"}
+                </button>
+                <a
+                  href={`/checkin?companyId=${selectedCompanyId || "00000000-0000-0000-0000-000000000000"}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-outline"
+                  style={{ padding: "8px 12px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                >
+                  <ExternalLink size={14} /> Open
+                </a>
+              </div>
+            </div>
+
+            {/* OUT Terminal */}
+            <div style={{
+              background: "#ffffff",
+              border: "1.5px solid #ef4444",
+              borderRadius: "16px",
+              padding: "20px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              boxShadow: "0 4px 16px rgba(239, 68, 68, 0.08)"
+            }}>
+              <span style={{
+                background: "rgba(239, 68, 68, 0.12)",
+                color: "#dc2626",
+                fontSize: "0.78rem",
+                fontWeight: 700,
+                padding: "4px 12px",
+                borderRadius: "20px",
+                marginBottom: "14px",
+                letterSpacing: "0.5px"
+              }}>
+                CHECK-OUT TERMINAL (OUT)
+              </span>
+
+              {outQrPreview ? (
+                <img 
+                  src={outQrPreview} 
+                  alt="Check-Out QR" 
+                  style={{ width: "180px", height: "180px", borderRadius: "10px", border: "1px solid #e5e7eb" }} 
+                />
+              ) : (
+                <div style={{ width: "180px", height: "180px", background: "#f3f4f6", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Loader2 size={24} className="animate-spin" />
+                </div>
+              )}
+
+              <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", margin: "10px 0 14px", maxWidth: "240px", wordBreak: "break-all" }}>
+                {typeof window !== "undefined" ? window.location.origin : ""}/checkout?companyId={selectedCompanyId || "default"}
+              </p>
+
+              <div style={{ display: "flex", gap: "8px", width: "100%", justifyContent: "center" }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ flex: 1, padding: "8px 12px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+                  onClick={() => {
+                    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+                    copyQrLink(`${origin}/checkout?companyId=${selectedCompanyId || "00000000-0000-0000-0000-000000000000"}`, "out");
+                  }}
+                >
+                  {copiedLink === "out" ? <Check size={14} color="#ef4444" /> : <Copy size={14} />}
+                  {copiedLink === "out" ? "Copied!" : "Copy Link"}
+                </button>
+                <a
+                  href={`/checkout?companyId=${selectedCompanyId || "00000000-0000-0000-0000-000000000000"}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-outline"
+                  style={{ padding: "8px 12px", fontSize: "0.8rem", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                >
+                  <ExternalLink size={14} /> Open
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Dashboard Grid (Map & Config Settings) */}
         <div className={styles.dashboardGrid}>
@@ -762,6 +955,19 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
+
+        {/* Solution Planets Footer Branding */}
+        <footer style={{
+          marginTop: "48px",
+          padding: "24px 0",
+          borderTop: "1px solid rgba(255, 255, 255, 0.05)",
+          textAlign: "center",
+          color: "var(--text-muted)",
+          fontSize: "0.82rem",
+          letterSpacing: "0.3px",
+        }}>
+          The product of Solution Planets
+        </footer>
       </main>
 
       {/* Selfie Preview Modal */}

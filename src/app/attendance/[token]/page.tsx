@@ -473,14 +473,14 @@ export default function AttendancePage() {
 
     gpsWatchIdRef.current = navigator.geolocation.watchPosition(handleSuccess, handleError, {
       enableHighAccuracy: true,
-      timeout: 10000,
+      timeout: 25000,
       maximumAge: 0,
     });
 
     // Safety timeout: stop loading spinner if GPS lock is slow
     setTimeout(() => {
       setGpsLoading(false);
-    }, 6000);
+    }, 15000);
   };
 
   // 8. Submit Check-In
@@ -988,6 +988,18 @@ export default function AttendancePage() {
           </div>
         </div>
       )}
+
+      {/* Solution Planets Footer Branding */}
+      <footer style={{
+        marginTop: "32px",
+        padding: "16px 0",
+        textAlign: "center",
+        fontSize: "0.82rem",
+        color: "rgba(255, 255, 255, 0.45)",
+        letterSpacing: "0.4px",
+      }}>
+        The product of Solution Planets
+      </footer>
     </div>
   );
 }

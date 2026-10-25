@@ -488,6 +488,18 @@ export default function CheckAttendancePage() {
             </div>
           )}
         </div>
+
+        <footer style={{
+          marginTop: "48px",
+          padding: "24px 0",
+          borderTop: "1px solid rgba(255, 255, 255, 0.05)",
+          textAlign: "center",
+          color: "var(--text-muted)",
+          fontSize: "0.82rem",
+          letterSpacing: "0.3px",
+        }}>
+          The product of Solution Planets
+        </footer>
       </main>
 
       {activeSelfie && (
