@@ -138,20 +138,25 @@ export default function SuperAdminPlanRequestsPage() {
           success: true,
           message: data.message || "Email sent successfully to client!",
         });
+        alert(data.message || "Official login credentials successfully emailed to client!");
       } else {
+        const errorText = data.error || data.details || "Failed to send email. Please check SMTP configuration.";
         setEmailStatusMsg({
           id: requestId,
           success: false,
-          message: data.error || "Failed to send email. Please check SMTP_PASS in .env",
+          message: errorText,
         });
+        alert(`Email Error: ${errorText}`);
       }
     } catch (err: any) {
       console.error("Error sending email:", err);
+      const errMsg = err.message || "Network error while sending email.";
       setEmailStatusMsg({
         id: requestId,
         success: false,
-        message: "Network error while sending email.",
+        message: errMsg,
       });
+      alert(`Network Error: ${errMsg}`);
     } finally {
       setEmailSendingId(null);
     }
@@ -572,6 +577,18 @@ export default function SuperAdminPlanRequestsPage() {
                                   </>
                                 )}
                               </button>
+                              {emailStatusMsg && emailStatusMsg.id === req.id && (
+                                <div style={{
+                                  marginTop: "6px",
+                                  fontSize: "0.74rem",
+                                  fontWeight: 600,
+                                  color: emailStatusMsg.success ? "#059669" : "#dc2626",
+                                  maxWidth: "200px",
+                                  lineHeight: "1.3",
+                                }}>
+                                  {emailStatusMsg.message}
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <div style={{ fontSize: "0.8rem", color: "#94a3b8" }}>

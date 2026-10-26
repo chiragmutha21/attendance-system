@@ -8,7 +8,7 @@ interface SendPlanApprovalEmailParams {
 
 export async function sendPlanApprovalEmail({ item, origin }: SendPlanApprovalEmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const smtpUser = process.env.SMTP_USER || "presivox@gmail.com";
-  const smtpPass = process.env.SMTP_PASS || "";
+  const smtpPass = (process.env.SMTP_PASS || "").trim();
   const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
   const smtpPort = Number(process.env.SMTP_PORT || 587);
   const smtpFrom = process.env.SMTP_FROM || `Presivox Attendance <${smtpUser}>`;
