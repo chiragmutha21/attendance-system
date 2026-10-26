@@ -17,6 +17,8 @@ import {
   Send,
   Check,
   AlertCircle,
+  Key,
+  Copy,
 } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import styles from "../../admin/admin.module.css";
@@ -32,6 +34,13 @@ export default function SuperAdminPlanRequestsPage() {
   const [emailSendingId, setEmailSendingId] = useState<string | null>(null);
   const [sentEmailIds, setSentEmailIds] = useState<string[]>([]);
   const [emailStatusMsg, setEmailStatusMsg] = useState<{ id: string; success: boolean; message: string } | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyPassword = (pwd: string, id: string) => {
+    navigator.clipboard.writeText(pwd);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const fetchRequests = async () => {
     try {
@@ -49,6 +58,15 @@ export default function SuperAdminPlanRequestsPage() {
   };
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("presivox_last_approved_plan");
+      if (saved) {
+        try {
+          setApprovedResult(JSON.parse(saved));
+        } catch {}
+      }
+    }
+
     const checkSuperAdminSession = async () => {
       try {
         const res = await fetch("/api/superadmin/session");
@@ -85,6 +103,9 @@ export default function SuperAdminPlanRequestsPage() {
       if (data.success) {
         if (action === "approve" && data.item) {
           setApprovedResult(data.item);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("presivox_last_approved_plan", JSON.stringify(data.item));
+          }
         }
         await fetchRequests();
       } else {
@@ -215,6 +236,9 @@ export default function SuperAdminPlanRequestsPage() {
                 onClick={() => {
                   setApprovedResult(null);
                   setEmailStatusMsg(null);
+                  if (typeof window !== "undefined") {
+                    localStorage.removeItem("presivox_last_approved_plan");
+                  }
                 }}
                 style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontWeight: 600, fontSize: "0.9rem" }}
               >
@@ -362,6 +386,41 @@ export default function SuperAdminPlanRequestsPage() {
                           <div style={{ fontSize: "0.8rem", color: "#64748b", display: "flex", alignItems: "center", gap: "6px", marginTop: "3px" }}>
                             <Phone size={12} /> {req.adminPhone}
                           </div>
+                          {req.status === "approved" && (
+                            <div style={{
+                              marginTop: "8px",
+                              padding: "4px 8px",
+                              background: "#eff6ff",
+                              border: "1px solid #bfdbfe",
+                              borderRadius: "6px",
+                              fontSize: "0.76rem",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                            }}>
+                              <Key size={12} color="#2563eb" />
+                              <span style={{ color: "#475569" }}>Pass:</span>
+                              <span style={{ color: "#1d4ed8", fontWeight: 750, fontFamily: "monospace" }}>
+                                {req.generatedPassword || "Smart@123456"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => copyPassword(req.generatedPassword || "Smart@123456", req.id)}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  padding: "0 2px",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  color: copiedId === req.id ? "#059669" : "#64748b",
+                                }}
+                                title="Copy Password"
+                              >
+                                {copiedId === req.id ? <Check size={12} /> : <Copy size={12} />}
+                              </button>
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: "16px 18px", verticalAlign: "top" }}>
                           <div style={{ display: "inline-block", padding: "4px 10px", borderRadius: "6px", fontWeight: 800, fontSize: "0.84rem", ...badgeStyle }}>
@@ -538,7 +597,15 @@ export default function SuperAdminPlanRequestsPage() {
           fontSize: "0.82rem",
           letterSpacing: "0.3px",
         }}>
-          The product of Solution Planets
+          A Product of{" "}
+          <a
+            href="https://www.solutionplanets.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#2563eb", textDecoration: "underline", textUnderlineOffset: "3px", fontWeight: 700 }}
+          >
+            Solution Planets
+          </a>
         </footer>
       </main>
     </div>

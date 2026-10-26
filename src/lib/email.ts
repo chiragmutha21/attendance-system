@@ -112,7 +112,7 @@ export async function sendPlanApprovalEmail({ item, origin }: SendPlanApprovalEm
       </p>
     </div>
     <div class="footer">
-      <p style="margin: 0 0 4px;"><strong>Presivox Attendance System</strong> &bull; The product of Solution Planets</p>
+      <p style="margin: 0 0 4px;"><strong>Presivox Attendance System</strong> &bull; A Product of <a href="https://www.solutionplanets.com/" style="color: #2563eb; text-decoration: underline;" target="_blank">Solution Planets</a></p>
       <p style="margin: 0;">Support Email: ${smtpUser}</p>
     </div>
   </div>
@@ -144,7 +144,7 @@ If you have any questions or require custom setup assistance, reply directly to 
 
 Best Regards,
 Presivox Attendance Team
-The product of Solution Planets
+A Product of Solution Planets (https://www.solutionplanets.com/)
 Support: ${smtpUser}
   `.trim();
 

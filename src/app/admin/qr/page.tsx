@@ -325,7 +325,15 @@ export default function QrTerminalPage() {
                 paddingTop: "12px",
                 width: "100%",
               }}>
-                The product of Solution Planets
+                A Product of{" "}
+                <a
+                  href="https://www.solutionplanets.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "#2563eb", textDecoration: "underline", fontWeight: 700 }}
+                >
+                  Solution Planets
+                </a>
               </div>
             </div>
 
@@ -387,7 +395,15 @@ export default function QrTerminalPage() {
             fontSize: "0.82rem",
             letterSpacing: "0.3px",
           }}>
-            The product of Solution Planets
+            A Product of{" "}
+            <a
+              href="https://www.solutionplanets.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--blue, #2563eb)", textDecoration: "underline", textUnderlineOffset: "3px", fontWeight: 700 }}
+            >
+              Solution Planets
+            </a>
           </footer>
         </main>
       </div>

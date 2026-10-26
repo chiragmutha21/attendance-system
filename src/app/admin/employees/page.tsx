@@ -472,7 +472,15 @@ export default function EmployeeRegistry() {
           fontSize: "0.82rem",
           letterSpacing: "0.3px",
         }}>
-          The product of Solution Planets
+          A Product of{" "}
+          <a
+            href="https://www.solutionplanets.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "var(--blue, #2563eb)", textDecoration: "underline", textUnderlineOffset: "3px", fontWeight: 700 }}
+          >
+            Solution Planets
+          </a>
         </footer>
       </main>
 

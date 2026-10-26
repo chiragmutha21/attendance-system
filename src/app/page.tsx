@@ -614,7 +614,15 @@ export default function Home() {
           </div>
           <div>© 2026 Presivox · All rights reserved</div>
           <div className="foot-product-line">
-            The product of Solution Planets
+            A Product of{" "}
+            <a
+              href="https://www.solutionplanets.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "var(--blue, #2563eb)", textDecoration: "underline", textUnderlineOffset: "3px", fontWeight: 700 }}
+            >
+              Solution Planets
+            </a>
           </div>
         </div>
       </footer>

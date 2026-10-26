@@ -1111,7 +1111,15 @@ function CheckOutContent() {
         color: "rgba(255, 255, 255, 0.45)",
         letterSpacing: "0.4px",
       }}>
-        The product of Solution Planets
+        A Product of{" "}
+        <a
+          href="https://www.solutionplanets.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "var(--color-primary-light, #38bdf8)", textDecoration: "underline", textUnderlineOffset: "3px", fontWeight: 700 }}
+        >
+          Solution Planets
+        </a>
       </footer>
     </div>
   );

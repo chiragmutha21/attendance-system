@@ -7,37 +7,138 @@ import { PRICING_PLANS, PlanConfig, PlanRequestItem } from "./plans";
 export { PRICING_PLANS };
 export type { PlanConfig, PlanRequestItem };
 
-const STORAGE_FILE = path.join(process.cwd(), "scratch", "plan-requests.json");
-const COMPANIES_CACHE_FILE = path.join(process.cwd(), "scratch", "local-companies.json");
+const PRIMARY_DATA_DIR = path.join(process.cwd(), "data");
+const STORAGE_FILE = path.join(PRIMARY_DATA_DIR, "plan-requests.json");
+const COMPANIES_CACHE_FILE = path.join(PRIMARY_DATA_DIR, "local-companies.json");
+
+// Backup paths
+const SCRATCH_STORAGE_FILE = path.join(process.cwd(), "scratch", "plan-requests.json");
+const SCRATCH_COMPANIES_FILE = path.join(process.cwd(), "scratch", "local-companies.json");
 
 function ensureStorageDir() {
-  const dir = path.dirname(STORAGE_FILE);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(PRIMARY_DATA_DIR)) {
+    fs.mkdirSync(PRIMARY_DATA_DIR, { recursive: true });
   }
+  const scratchDir = path.dirname(SCRATCH_STORAGE_FILE);
+  if (!fs.existsSync(scratchDir)) {
+    fs.mkdirSync(scratchDir, { recursive: true });
+  }
+
   if (!fs.existsSync(STORAGE_FILE)) {
-    fs.writeFileSync(STORAGE_FILE, JSON.stringify([]), "utf-8");
+    // If scratch exists, copy from scratch
+    if (fs.existsSync(SCRATCH_STORAGE_FILE)) {
+      try {
+        fs.copyFileSync(SCRATCH_STORAGE_FILE, STORAGE_FILE);
+      } catch {
+        fs.writeFileSync(STORAGE_FILE, JSON.stringify([]), "utf-8");
+      }
+    } else {
+      fs.writeFileSync(STORAGE_FILE, JSON.stringify([]), "utf-8");
+    }
   }
+
   if (!fs.existsSync(COMPANIES_CACHE_FILE)) {
-    fs.writeFileSync(COMPANIES_CACHE_FILE, JSON.stringify([]), "utf-8");
+    if (fs.existsSync(SCRATCH_COMPANIES_FILE)) {
+      try {
+        fs.copyFileSync(SCRATCH_COMPANIES_FILE, COMPANIES_CACHE_FILE);
+      } catch {
+        fs.writeFileSync(COMPANIES_CACHE_FILE, JSON.stringify([]), "utf-8");
+      }
+    } else {
+      fs.writeFileSync(COMPANIES_CACHE_FILE, JSON.stringify([]), "utf-8");
+    }
   }
 }
 
 export function getAllPlanRequests(): PlanRequestItem[] {
   try {
     ensureStorageDir();
-    const data = fs.readFileSync(STORAGE_FILE, "utf-8");
-    return JSON.parse(data);
+    let data = "[]";
+    if (fs.existsSync(STORAGE_FILE)) {
+      data = fs.readFileSync(STORAGE_FILE, "utf-8");
+    } else if (fs.existsSync(SCRATCH_STORAGE_FILE)) {
+      data = fs.readFileSync(SCRATCH_STORAGE_FILE, "utf-8");
+    }
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : [];
   } catch (err) {
     console.error("Error reading plan requests:", err);
     return [];
   }
 }
 
+/**
+ * Async version that also syncs with PostgreSQL Database (Company table)
+ * so that approved companies in the database are NEVER lost on refresh.
+ */
+export async function getAllPlanRequestsAsync(): Promise<PlanRequestItem[]> {
+  const fileRequests = getAllPlanRequests();
+  const existingEmails = new Set(fileRequests.map((r) => r.adminEmail.toLowerCase().trim()));
+
+  try {
+    // Query database companies
+    const dbCompanies = await db.company.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+
+    let hasNewFromDb = false;
+    for (const comp of dbCompanies) {
+      const emailLower = (comp.adminEmail || "").toLowerCase().trim();
+      if (emailLower && !existingEmails.has(emailLower)) {
+        // Construct a plan request item from the approved database company
+        const planName = comp.subscription || "Plan B (Up to 50 Employees)";
+        const isPlanA = planName.toLowerCase().includes("plan a");
+        const isPlanC = planName.toLowerCase().includes("plan c");
+        const planId = isPlanA ? "plan-a" : isPlanC ? "plan-c" : "plan-b";
+        const planDef = PRICING_PLANS[planId];
+
+        const restoredItem: PlanRequestItem = {
+          id: `req_${comp.id}`,
+          companyId: comp.id,
+          companyName: comp.name,
+          planId,
+          planName: planDef ? planDef.name : planName,
+          employeeLimit: comp.employeeLimit || 50,
+          basePrice: planDef ? planDef.basePrice : 11999,
+          gstAmount: planDef ? planDef.gstAmount : 2159.82,
+          totalAmount: planDef ? planDef.totalAmount : 14158.82,
+          adminName: comp.adminName || "Admin",
+          adminEmail: comp.adminEmail,
+          adminPhone: comp.adminPhone || "N/A",
+          address: comp.address || "",
+          attendanceMode: isPlanA ? "without_photo" : "with_photo",
+          status: "approved",
+          generatedPassword: "Smart@123456",
+          createdAt: comp.createdAt ? comp.createdAt.toISOString() : new Date().toISOString(),
+          updatedAt: comp.updatedAt ? comp.updatedAt.toISOString() : new Date().toISOString(),
+          approvedAt: comp.createdAt ? comp.createdAt.toISOString() : new Date().toISOString(),
+        };
+
+        fileRequests.push(restoredItem);
+        existingEmails.add(emailLower);
+        hasNewFromDb = true;
+      }
+    }
+
+    if (hasNewFromDb) {
+      savePlanRequests(fileRequests);
+    }
+  } catch (err: any) {
+    console.warn("Prisma DB sync in getAllPlanRequestsAsync (using file requests):", err.message);
+  }
+
+  return fileRequests;
+}
+
 export function savePlanRequests(requests: PlanRequestItem[]) {
   try {
     ensureStorageDir();
-    fs.writeFileSync(STORAGE_FILE, JSON.stringify(requests, null, 2), "utf-8");
+    const jsonStr = JSON.stringify(requests, null, 2);
+    fs.writeFileSync(STORAGE_FILE, jsonStr, "utf-8");
+    // Also backup to scratch
+    try {
+      fs.writeFileSync(SCRATCH_STORAGE_FILE, jsonStr, "utf-8");
+    } catch {}
   } catch (err) {
     console.error("Error saving plan requests:", err);
   }
@@ -58,8 +159,14 @@ export function findPlanRequestByCompanyId(companyId: string): PlanRequestItem |
 export function getLocalCompanies(): any[] {
   try {
     ensureStorageDir();
-    const data = fs.readFileSync(COMPANIES_CACHE_FILE, "utf-8");
-    return JSON.parse(data);
+    let data = "[]";
+    if (fs.existsSync(COMPANIES_CACHE_FILE)) {
+      data = fs.readFileSync(COMPANIES_CACHE_FILE, "utf-8");
+    } else if (fs.existsSync(SCRATCH_COMPANIES_FILE)) {
+      data = fs.readFileSync(SCRATCH_COMPANIES_FILE, "utf-8");
+    }
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
@@ -68,7 +175,11 @@ export function getLocalCompanies(): any[] {
 export function saveLocalCompanies(companies: any[]) {
   try {
     ensureStorageDir();
-    fs.writeFileSync(COMPANIES_CACHE_FILE, JSON.stringify(companies, null, 2), "utf-8");
+    const jsonStr = JSON.stringify(companies, null, 2);
+    fs.writeFileSync(COMPANIES_CACHE_FILE, jsonStr, "utf-8");
+    try {
+      fs.writeFileSync(SCRATCH_COMPANIES_FILE, jsonStr, "utf-8");
+    } catch {}
   } catch (err) {
     console.error("Error saving local companies:", err);
   }
@@ -86,9 +197,6 @@ export async function createPlanRequest(params: {
   const plan = PRICING_PLANS[params.planId] || PRICING_PLANS["plan-a"];
   const id = `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-  // Enforce attendance mode based on plan:
-  // Plan A is Without Photo only (Mobile + GPS)
-  // Plan B and C allow With Photo
   let attendanceMode = params.attendanceMode || "with_photo";
   if (plan.id === "plan-a") {
     attendanceMode = "without_photo";
@@ -114,8 +222,10 @@ export async function createPlanRequest(params: {
   };
 
   const requests = getAllPlanRequests();
-  requests.unshift(newItem);
-  savePlanRequests(requests);
+  // Filter out any older duplicate with same email if pending
+  const filtered = requests.filter((r) => !(r.adminEmail.toLowerCase() === newItem.adminEmail && r.status === "pending"));
+  filtered.unshift(newItem);
+  savePlanRequests(filtered);
 
   return newItem;
 }
@@ -239,7 +349,7 @@ export function rejectPlanRequest(requestId: string, reason?: string): { success
 
   const req = requests[index];
   req.status = "rejected";
-  req.rejectionReason = reason || "Request rejected by Super Admin";
+  req.rejectionReason = reason || "Declined by Super Admin";
   req.updatedAt = new Date().toISOString();
 
   requests[index] = req;

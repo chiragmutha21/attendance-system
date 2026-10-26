@@ -247,7 +247,15 @@ export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: Si
           color: "var(--blue)",
           fontWeight: 750
         }}>
-          The product of Solution Planets
+          A Product of{" "}
+          <a
+            href="https://www.solutionplanets.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "var(--blue)", textDecoration: "underline", textUnderlineOffset: "2px", fontWeight: 800 }}
+          >
+            Solution Planets
+          </a>
         </div>
       </aside>
     </>

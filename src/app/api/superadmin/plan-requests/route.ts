@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import jwt, { type JwtPayload } from "jsonwebtoken";
-import { getAllPlanRequests, approvePlanRequest, rejectPlanRequest } from "@/lib/planRequests";
+import { getAllPlanRequests, getAllPlanRequestsAsync, approvePlanRequest, rejectPlanRequest } from "@/lib/planRequests";
 
 async function isSuperAdminRequest() {
   const cookieStore = await cookies();
@@ -22,7 +22,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized Super Admin" }, { status: 401 });
   }
 
-  const requests = getAllPlanRequests();
+  const requests = await getAllPlanRequestsAsync();
   return NextResponse.json({ success: true, requests });
 }
 
