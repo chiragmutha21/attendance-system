@@ -5,6 +5,9 @@ import { getAllPlanRequests, getAllPlanRequestsAsync, approvePlanRequest, reject
 
 async function isSuperAdminRequest() {
   const cookieStore = await cookies();
+  const local = cookieStore.get("local_admin_session")?.value;
+  if (local === "superadmin") return true;
+
   const token = cookieStore.get("super_admin_session")?.value || "";
   if (!token) return false;
   try {

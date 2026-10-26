@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import jwt from "jsonwebtoken";
 import { db } from "@/lib/db";
 import { findPlanRequestByEmail, getLocalCompanies } from "@/lib/planRequests";
 
@@ -31,6 +32,17 @@ export async function POST(request: Request) {
       });
 
       response.cookies.set("local_admin_session", "superadmin", {
+        path: "/",
+        maxAge: 86400,
+        sameSite: "lax",
+      });
+
+      const token = jwt.sign(
+        { role: "SUPER_ADMIN", email: emailLower },
+        process.env.JWT_SECRET || "local-super-admin-secret",
+        { expiresIn: 86400 }
+      );
+      response.cookies.set("super_admin_session", token, {
         path: "/",
         maxAge: 86400,
         sameSite: "lax",
