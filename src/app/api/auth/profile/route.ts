@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     if (superAdminSession || localSession === "superadmin") {
       return NextResponse.json({
         success: true,
-        user: { email: "chiragmutha31@gmail.com", name: "Super Admin" },
+        user: { email: "presivox@gmail.com", name: "Super Admin" },
         role: "SUPER_ADMIN",
         companyId: null,
         needsOnboarding: false,
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
       console.warn("Supabase auth verification failed, using token payload fallback:", authErr);
     }
 
-    const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL || "chiragmutha31@gmail.com").toLowerCase();
+    const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL || "presivox@gmail.com").toLowerCase();
 
     if (email === superAdminEmail || email === "superadmin@example.com") {
       return NextResponse.json({

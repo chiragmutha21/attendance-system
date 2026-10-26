@@ -66,7 +66,7 @@ function LoginContent() {
       const emailLower = emailTrimmed.toLowerCase();
       
       // If SuperAdmin
-      if (emailLower === "chiragmutha31@gmail.com" || emailLower === "superadmin@example.com") {
+      if (emailLower === "presivox@gmail.com" || emailLower === "superadmin@example.com") {
         const res = await fetch("/api/superadmin/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

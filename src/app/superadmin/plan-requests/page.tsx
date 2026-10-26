@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  CreditCard,
   CheckCircle,
   XCircle,
   Clock,
@@ -15,12 +14,9 @@ import {
   Sparkles,
   ShieldCheck,
   User,
-  AlertTriangle,
-  Key,
-  Copy,
-  Check,
-  ExternalLink,
   Send,
+  Check,
+  AlertCircle,
 } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import styles from "../../admin/admin.module.css";
@@ -33,55 +29,9 @@ export default function SuperAdminPlanRequestsPage() {
   const [approvedResult, setApprovedResult] = useState<PlanRequestItem | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  const getEmailContent = (item: PlanRequestItem) => {
-    const origin = typeof window !== "undefined" && !window.location.origin.includes("localhost")
-      ? "https://presivox.com"
-      : typeof window !== "undefined"
-      ? window.location.origin
-      : "https://presivox.com";
-    const subject = `Welcome to Presivox - Your ${item.planName} Attendance Portal is Active!`;
-    const body = `Dear ${item.adminName},
-
-Congratulations! Your subscription request for ${item.companyName} has been approved by the Super Admin.
-
-Here are your official company login credentials:
---------------------------------------------------
-Company Name : ${item.companyName}
-Subscription : ${item.planName} (${item.employeeLimit >= 999990 ? "Unlimited" : `Up to ${item.employeeLimit}`} Employees)
-Login Portal : ${origin}/login
-Admin Email  : ${item.adminEmail}
-Password     : ${item.generatedPassword || "admin123"}
---------------------------------------------------
-
-Next Steps to Get Started:
-1. Open the Login Portal: ${origin}/login
-2. Sign in with your registered email and password above.
-3. Access your dedicated QR Standee (IN & OUT) to print or display at your workplace.
-4. Add your employee profiles in the Employee Registry.
-
-If you have any questions or require custom setup assistance, feel free to reply directly to presivox@gmail.com.
-
-Best Regards,
-Presivox Attendance Team
-The product of Solution Planets
-Support: presivox@gmail.com`;
-    return { subject, body };
-  };
-
-  const openGmail = (item: PlanRequestItem) => {
-    const { subject, body } = getEmailContent(item);
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(item.adminEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.open(gmailUrl, "_blank");
-  };
-
-  const copyEmailText = (item: PlanRequestItem) => {
-    const { body } = getEmailContent(item);
-    navigator.clipboard.writeText(body);
-    setCopiedId(item.id);
-    setTimeout(() => setCopiedId(null), 2500);
-  };
+  const [emailSendingId, setEmailSendingId] = useState<string | null>(null);
+  const [sentEmailIds, setSentEmailIds] = useState<string[]>([]);
+  const [emailStatusMsg, setEmailStatusMsg] = useState<{ id: string; success: boolean; message: string } | null>(null);
 
   const fetchRequests = async () => {
     try {
@@ -148,6 +98,44 @@ Support: presivox@gmail.com`;
     }
   };
 
+  const handleSendEmail = async (requestId: string) => {
+    try {
+      setEmailSendingId(requestId);
+      setEmailStatusMsg(null);
+
+      const res = await fetch("/api/superadmin/send-plan-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setSentEmailIds((prev) => [...prev, requestId]);
+        setEmailStatusMsg({
+          id: requestId,
+          success: true,
+          message: data.message || "Email sent successfully to client!",
+        });
+      } else {
+        setEmailStatusMsg({
+          id: requestId,
+          success: false,
+          message: data.error || "Failed to send email. Please check SMTP_PASS in .env",
+        });
+      }
+    } catch (err: any) {
+      console.error("Error sending email:", err);
+      setEmailStatusMsg({
+        id: requestId,
+        success: false,
+        message: "Network error while sending email.",
+      });
+    } finally {
+      setEmailSendingId(null);
+    }
+  };
+
   if (authChecking) {
     return (
       <div className="flex-center" style={{ minHeight: "100vh", color: "var(--text-secondary)" }}>
@@ -161,7 +149,7 @@ Support: presivox@gmail.com`;
       <div className="flex-center" style={{ minHeight: "100vh", padding: "24px" }}>
         <div className="glass-panel" style={{ padding: "32px", textAlign: "center", maxWidth: "400px" }}>
           <ShieldCheck size={48} color="var(--color-primary)" style={{ margin: "0 auto 16px auto" }} />
-          <h2 style={{ color: "#fff", marginBottom: "12px" }}>Super Admin Restricted</h2>
+          <h2 style={{ color: "#0f172a", marginBottom: "12px", fontWeight: 800 }}>Super Admin Restricted</h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: "20px" }}>
             Please sign in through the Super Admin portal to manage customer plan requests.
           </p>
@@ -196,214 +184,345 @@ Support: presivox@gmail.com`;
 
         {/* Stats Row */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "28px" }}>
-          <div className="glass-panel" style={{ padding: "20px", borderRadius: "14px" }}>
-            <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600, marginBottom: "6px" }}>Pending Approvals</div>
-            <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "#facc15" }}>{pendingCount}</div>
-            <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>Awaiting ID & password setup</div>
+          <div className="glass-panel" style={{ padding: "20px", borderRadius: "14px", background: "#ffffff", border: "1px solid #e2e8f0" }}>
+            <div style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: 650, marginBottom: "6px" }}>Pending Approvals</div>
+            <div style={{ fontSize: "2rem", fontWeight: 850, color: "#d97706" }}>{pendingCount}</div>
+            <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Awaiting ID & password setup</div>
           </div>
-          <div className="glass-panel" style={{ padding: "20px", borderRadius: "14px" }}>
-            <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600, marginBottom: "6px" }}>Active Approved Plans</div>
-            <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--color-success)" }}>{approvedCount}</div>
-            <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>Provisioned companies</div>
+          <div className="glass-panel" style={{ padding: "20px", borderRadius: "14px", background: "#ffffff", border: "1px solid #e2e8f0" }}>
+            <div style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: 650, marginBottom: "6px" }}>Active Approved Plans</div>
+            <div style={{ fontSize: "2rem", fontWeight: 850, color: "#059669" }}>{approvedCount}</div>
+            <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Provisioned companies</div>
           </div>
         </div>
 
         {/* Success Modal / Credentials Box */}
         {approvedResult && (
-          <div className="glass-panel" style={{
+          <div style={{
             padding: "24px",
             borderRadius: "16px",
             marginBottom: "28px",
-            border: "1px solid rgba(16, 185, 129, 0.4)",
-            background: "rgba(16, 185, 129, 0.08)",
+            border: "1px solid #a7f3d0",
+            background: "#f0fdf4",
+            boxShadow: "0 4px 16px rgba(16, 185, 129, 0.08)",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--color-success)", fontWeight: 700, fontSize: "1.1rem" }}>
-                <CheckCircle size={22} />
-                Plan Request Approved & Dispatched!
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#065f46", fontWeight: 800, fontSize: "1.15rem" }}>
+                <CheckCircle size={24} color="#059669" />
+                Plan Request Approved & Ready for Dispatch!
               </div>
-              <button onClick={() => setApprovedResult(null)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
+              <button
+                onClick={() => {
+                  setApprovedResult(null);
+                  setEmailStatusMsg(null);
+                }}
+                style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontWeight: 600, fontSize: "0.9rem" }}
+              >
                 ✕ Dismiss
               </button>
             </div>
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.88rem", marginBottom: "16px" }}>
-              An official email confirmation has been issued with the following company login credentials:
+            <p style={{ color: "#334155", fontSize: "0.9rem", marginBottom: "16px" }}>
+              The company record has been provisioned. Click <strong>Send Mail</strong> to automatically deliver login credentials to the client:
             </p>
+
             <div style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-              gap: "12px",
-              background: "rgba(0,0,0,0.4)",
-              padding: "16px",
-              borderRadius: "10px",
-              fontSize: "0.85rem",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: "14px",
+              background: "#ffffff",
+              border: "1px solid #e2e8f0",
+              padding: "18px",
+              borderRadius: "12px",
+              fontSize: "0.88rem",
             }}>
-              <div><strong style={{ color: "#fff" }}>Company:</strong> {approvedResult.companyName}</div>
-              <div><strong style={{ color: "#fff" }}>Plan Limit:</strong> {approvedResult.employeeLimit >= 999990 ? "Unlimited" : `${approvedResult.employeeLimit} Employees`}</div>
-              <div><strong style={{ color: "#fff" }}>Login ID / Email:</strong> {approvedResult.adminEmail}</div>
-              <div><strong style={{ color: "#fff" }}>Generated Password:</strong> <span style={{ color: "#38bdf8", fontFamily: "monospace", fontWeight: 700 }}>{approvedResult.generatedPassword}</span></div>
+              <div><strong style={{ color: "#64748b" }}>Company:</strong> <div style={{ color: "#0f172a", fontWeight: 750, marginTop: "2px" }}>{approvedResult.companyName}</div></div>
+              <div><strong style={{ color: "#64748b" }}>Plan Limit:</strong> <div style={{ color: "#0f172a", fontWeight: 750, marginTop: "2px" }}>{approvedResult.employeeLimit >= 999990 ? "Unlimited" : `${approvedResult.employeeLimit} Employees`}</div></div>
+              <div><strong style={{ color: "#64748b" }}>Login ID / Email:</strong> <div style={{ color: "#2563eb", fontWeight: 750, marginTop: "2px" }}>{approvedResult.adminEmail}</div></div>
+              <div><strong style={{ color: "#64748b" }}>Generated Password:</strong> <div style={{ marginTop: "2px" }}><span style={{ color: "#1d4ed8", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "2px 8px", borderRadius: "6px", fontFamily: "monospace", fontWeight: 750 }}>{approvedResult.generatedPassword}</span></div></div>
             </div>
 
-            {/* Email Dispatch Buttons */}
-            <div style={{ marginTop: "14px", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+            {/* Status Message (if any) */}
+            {emailStatusMsg && emailStatusMsg.id === approvedResult.id && (
+              <div style={{
+                marginTop: "14px",
+                padding: "10px 14px",
+                borderRadius: "8px",
+                fontSize: "0.85rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                background: emailStatusMsg.success ? "#ecfdf5" : "#fef2f2",
+                border: emailStatusMsg.success ? "1px solid #a7f3d0" : "1px solid #fca5a5",
+                color: emailStatusMsg.success ? "#065f46" : "#991b1b",
+              }}>
+                {emailStatusMsg.success ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+                <span>{emailStatusMsg.message}</span>
+              </div>
+            )}
+
+            {/* Single Send Mail Button */}
+            <div style={{ marginTop: "16px", display: "flex", gap: "10px", alignItems: "center" }}>
               <button
                 type="button"
-                onClick={() => openGmail(approvedResult)}
+                onClick={() => handleSendEmail(approvedResult.id)}
+                disabled={emailSendingId === approvedResult.id}
                 className="btn btn-primary"
-                style={{ padding: "8px 16px", fontSize: "0.85rem", background: "var(--blue)", display: "inline-flex", alignItems: "center", gap: "6px" }}
+                style={{
+                  padding: "10px 24px",
+                  fontSize: "0.92rem",
+                  fontWeight: 700,
+                  background: sentEmailIds.includes(approvedResult.id) ? "#059669" : "linear-gradient(135deg, #2563eb, #1d4ed8)",
+                  color: "#ffffff",
+                  borderRadius: "10px",
+                  border: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(37, 99, 235, 0.25)",
+                }}
               >
-                <Send size={15} /> Send via Gmail (presivox@gmail.com)
-              </button>
-              <a
-                href={`mailto:${approvedResult.adminEmail}?subject=${encodeURIComponent(getEmailContent(approvedResult).subject)}&body=${encodeURIComponent(getEmailContent(approvedResult).body)}`}
-                className="btn btn-outline"
-                style={{ padding: "8px 16px", fontSize: "0.85rem", display: "inline-flex", alignItems: "center", gap: "6px" }}
-              >
-                <Mail size={15} /> Open Mail Client
-              </a>
-              <button
-                type="button"
-                onClick={() => copyEmailText(approvedResult)}
-                className="btn btn-outline"
-                style={{ padding: "8px 16px", fontSize: "0.85rem", display: "inline-flex", alignItems: "center", gap: "6px" }}
-              >
-                {copiedId === approvedResult.id ? <Check size={15} color="#10b981" /> : <Copy size={15} />}
-                {copiedId === approvedResult.id ? "Email Text Copied!" : "Copy Email Template"}
+                {emailSendingId === approvedResult.id ? (
+                  <>
+                    <Loader2 className="animate-spin" size={16} /> Sending Mail...
+                  </>
+                ) : sentEmailIds.includes(approvedResult.id) ? (
+                  <>
+                    <Check size={16} /> Mail Sent Successfully
+                  </>
+                ) : (
+                  <>
+                    <Send size={16} /> Send Mail
+                  </>
+                )}
               </button>
             </div>
           </div>
         )}
 
         {/* Requests Table */}
-        <div className={`${styles.contentCard} glass-panel`}>
-          <div className={styles.cardHeader}>
-            <h2 className={styles.cardTitle}>Client Order Submissions</h2>
+        <div className={`${styles.contentCard} glass-panel`} style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "16px", overflow: "hidden" }}>
+          <div className={styles.cardHeader} style={{ padding: "20px 24px", borderBottom: "1px solid #f1f5f9" }}>
+            <h2 className={styles.cardTitle} style={{ color: "#0f172a", fontWeight: 800, fontSize: "1.2rem", margin: 0 }}>
+              Client Order Submissions
+            </h2>
           </div>
 
           {loading ? (
-            <p style={{ textAlign: "center", color: "var(--text-secondary)", padding: "40px" }}>Loading requests...</p>
+            <p style={{ textAlign: "center", color: "#64748b", padding: "40px" }}>Loading requests...</p>
           ) : requests.length === 0 ? (
-            <p style={{ textAlign: "center", color: "var(--text-secondary)", padding: "40px" }}>No plan requests found.</p>
+            <p style={{ textAlign: "center", color: "#64748b", padding: "40px" }}>No plan requests found.</p>
           ) : (
-            <div className={styles.tableWrapper}>
-              <table className={styles.table}>
+            <div className={styles.tableWrapper} style={{ overflowX: "auto" }}>
+              <table className={styles.table} style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr>
-                    <th>Company & Contact</th>
-                    <th>Selected Plan</th>
-                    <th>Pricing Breakdown (+18% GST)</th>
-                    <th>Mode & Address</th>
-                    <th>Status</th>
-                    <th>Actions</th>
+                  <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                    <th style={{ color: "#475569", fontWeight: 700, fontSize: "0.76rem", textTransform: "uppercase", letterSpacing: "0.6px", padding: "14px 18px", textAlign: "left" }}>
+                      Company &amp; Contact
+                    </th>
+                    <th style={{ color: "#475569", fontWeight: 700, fontSize: "0.76rem", textTransform: "uppercase", letterSpacing: "0.6px", padding: "14px 18px", textAlign: "left" }}>
+                      Selected Plan
+                    </th>
+                    <th style={{ color: "#475569", fontWeight: 700, fontSize: "0.76rem", textTransform: "uppercase", letterSpacing: "0.6px", padding: "14px 18px", textAlign: "left" }}>
+                      Pricing Breakdown (+18% GST)
+                    </th>
+                    <th style={{ color: "#475569", fontWeight: 700, fontSize: "0.76rem", textTransform: "uppercase", letterSpacing: "0.6px", padding: "14px 18px", textAlign: "left" }}>
+                      Mode &amp; Address
+                    </th>
+                    <th style={{ color: "#475569", fontWeight: 700, fontSize: "0.76rem", textTransform: "uppercase", letterSpacing: "0.6px", padding: "14px 18px", textAlign: "left" }}>
+                      Status
+                    </th>
+                    <th style={{ color: "#475569", fontWeight: 700, fontSize: "0.76rem", textTransform: "uppercase", letterSpacing: "0.6px", padding: "14px 18px", textAlign: "left" }}>
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {requests.map((req) => (
-                    <tr key={req.id}>
-                      <td>
-                        <div style={{ fontWeight: 700, color: "#fff", fontSize: "0.95rem" }}>{req.companyName}</div>
-                        <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "6px", marginTop: "2px" }}>
-                          <User size={13} /> {req.adminName}
-                        </div>
-                        <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "6px", marginTop: "2px" }}>
-                          <Mail size={12} /> {req.adminEmail}
-                        </div>
-                        <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "6px", marginTop: "2px" }}>
-                          <Phone size={12} /> {req.adminPhone}
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ display: "inline-block", padding: "4px 10px", borderRadius: "6px", background: "rgba(139, 92, 246, 0.15)", border: "1px solid rgba(139, 92, 246, 0.3)", fontWeight: 800, color: "#c4b5fd", fontSize: "0.85rem" }}>
-                          {req.planName}
-                        </div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "4px", fontWeight: 600 }}>
-                          {req.employeeLimit >= 999990 ? "Unlimited Employees" : `Up to ${req.employeeLimit} Employees`}
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ fontWeight: 800, color: "#fff", fontSize: "1rem" }}>
-                          ₹{req.totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                        </div>
-                        <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-                          Base: ₹{req.basePrice.toLocaleString("en-IN")} + 18% GST (₹{req.gstAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })})
-                        </div>
-                        <div style={{ fontSize: "0.7rem", color: "var(--color-primary-light)", fontWeight: 600, marginTop: "2px" }}>
-                          Per Year Basis
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ fontSize: "0.8rem", color: "#fff", fontWeight: 600 }}>
-                          {req.attendanceMode === "with_photo" ? "📸 With Photo (AI Face)" : "⚡ Without Photo"}
-                        </div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px", maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          📍 {req.address || "No address provided"}
-                        </div>
-                      </td>
-                      <td>
-                        {req.status === "pending" ? (
-                          <span className="badge" style={{ background: "rgba(234, 179, 8, 0.15)", color: "#fef08a", border: "1px solid rgba(234, 179, 8, 0.3)" }}>
-                            Pending Review
-                          </span>
-                        ) : req.status === "approved" ? (
-                          <span className="badge" style={{ background: "rgba(16, 185, 129, 0.15)", color: "#a7f3d0", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
-                            ✓ Accepted & Mail Sent
-                          </span>
-                        ) : (
-                          <span className="badge" style={{ background: "rgba(239, 68, 68, 0.15)", color: "#fecaca", border: "1px solid rgba(239, 68, 68, 0.3)" }}>
-                            Rejected
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {req.status === "pending" ? (
-                          <div style={{ display: "flex", gap: "8px" }}>
-                            <button
-                              onClick={() => handleAction(req.id, "approve")}
-                              disabled={actionLoadingId === req.id}
-                              className="btn btn-primary"
-                              style={{ padding: "6px 14px", fontSize: "0.8rem", background: "linear-gradient(135deg, #10b981, #059669)" }}
-                            >
-                              {actionLoadingId === req.id ? <Loader2 className="animate-spin" size={14} /> : "Accept"}
-                            </button>
-                            <button
-                              onClick={() => handleAction(req.id, "reject")}
-                              disabled={actionLoadingId === req.id}
-                              className="btn btn-outline"
-                              style={{ padding: "6px 14px", fontSize: "0.8rem", color: "#ef4444", borderColor: "rgba(239, 68, 68, 0.4)" }}
-                            >
-                              Reject
-                            </button>
+                  {requests.map((req) => {
+                    const isPlanA = req.planId === "plan-a";
+                    const isPlanB = req.planId === "plan-b";
+                    const isPlanC = req.planId === "plan-c";
+
+                    const badgeStyle = isPlanA
+                      ? { background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0" }
+                      : isPlanB
+                      ? { background: "#f5f3ff", color: "#6d28d9", border: "1px solid #ddd6fe" }
+                      : { background: "#fffbeb", color: "#b45309", border: "1px solid #fde68a" };
+
+                    return (
+                      <tr key={req.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "16px 18px", verticalAlign: "top" }}>
+                          <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "0.98rem" }}>{req.companyName}</div>
+                          <div style={{ fontSize: "0.82rem", color: "#334155", display: "flex", alignItems: "center", gap: "6px", marginTop: "3px" }}>
+                            <User size={13} color="#2563eb" /> {req.adminName}
                           </div>
-                        ) : req.status === "approved" ? (
-                          <div style={{ display: "flex", gap: "6px" }}>
-                            <button
-                              type="button"
-                              onClick={() => openGmail(req)}
-                              className="btn btn-outline"
-                              title="Send Email via Gmail"
-                              style={{ padding: "5px 10px", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: "4px" }}
-                            >
-                              <Send size={12} color="var(--blue)" /> Mail
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => copyEmailText(req)}
-                              className="btn btn-outline"
-                              title="Copy Email Template"
-                              style={{ padding: "5px 10px", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: "4px" }}
-                            >
-                              {copiedId === req.id ? <Check size={12} color="#10b981" /> : <Copy size={12} />}
-                              {copiedId === req.id ? "Copied" : "Copy"}
-                            </button>
+                          <div style={{ fontSize: "0.8rem", color: "#2563eb", display: "flex", alignItems: "center", gap: "6px", marginTop: "3px" }}>
+                            <Mail size={12} /> {req.adminEmail}
                           </div>
-                        ) : (
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                            Closed
+                          <div style={{ fontSize: "0.8rem", color: "#64748b", display: "flex", alignItems: "center", gap: "6px", marginTop: "3px" }}>
+                            <Phone size={12} /> {req.adminPhone}
                           </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td style={{ padding: "16px 18px", verticalAlign: "top" }}>
+                          <div style={{ display: "inline-block", padding: "4px 10px", borderRadius: "6px", fontWeight: 800, fontSize: "0.84rem", ...badgeStyle }}>
+                            {req.planName}
+                          </div>
+                          <div style={{ fontSize: "0.78rem", color: "#475569", marginTop: "5px", fontWeight: 600 }}>
+                            {req.employeeLimit >= 999990 ? "Unlimited Employees" : `Up to ${req.employeeLimit} Employees`}
+                          </div>
+                        </td>
+                        <td style={{ padding: "16px 18px", verticalAlign: "top" }}>
+                          <div style={{ fontWeight: 850, color: "#0f172a", fontSize: "1.05rem" }}>
+                            ₹{req.totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "3px" }}>
+                            Base: ₹{req.basePrice.toLocaleString("en-IN")} + 18% GST (₹{req.gstAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })})
+                          </div>
+                          <div style={{ fontSize: "0.72rem", color: "#2563eb", fontWeight: 700, marginTop: "3px" }}>
+                            Per Year Basis
+                          </div>
+                        </td>
+                        <td style={{ padding: "16px 18px", verticalAlign: "top" }}>
+                          <div style={{ fontSize: "0.82rem", color: "#0f172a", fontWeight: 700 }}>
+                            {req.attendanceMode === "with_photo" ? "📸 With Photo (AI Face)" : "⚡ Without Photo"}
+                          </div>
+                          <div style={{ fontSize: "0.78rem", color: "#475569", marginTop: "4px", display: "flex", alignItems: "center", gap: "5px", maxWidth: "220px" }}>
+                            <MapPin size={13} color="#64748b" style={{ flexShrink: 0 }} />
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {req.address || "No address provided"}
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ padding: "16px 18px", verticalAlign: "top" }}>
+                          {req.status === "pending" ? (
+                            <span style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "5px",
+                              padding: "5px 12px",
+                              borderRadius: "20px",
+                              background: "#fef3c7",
+                              color: "#92400e",
+                              border: "1px solid #fcd34d",
+                              fontWeight: 750,
+                              fontSize: "0.78rem"
+                            }}>
+                              <Clock size={12} /> Pending Review
+                            </span>
+                          ) : req.status === "approved" ? (
+                            <span style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "5px",
+                              padding: "5px 12px",
+                              borderRadius: "20px",
+                              background: "#ecfdf5",
+                              color: "#065f46",
+                              border: "1px solid #6ee7b7",
+                              fontWeight: 750,
+                              fontSize: "0.78rem"
+                            }}>
+                              <CheckCircle size={12} /> Approved
+                            </span>
+                          ) : (
+                            <span style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "5px",
+                              padding: "5px 12px",
+                              borderRadius: "20px",
+                              background: "#fef2f2",
+                              color: "#991b1b",
+                              border: "1px solid #fca5a5",
+                              fontWeight: 750,
+                              fontSize: "0.78rem"
+                            }}>
+                              <XCircle size={12} /> Rejected
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: "16px 18px", verticalAlign: "top" }}>
+                          {req.status === "pending" ? (
+                            <div style={{ display: "flex", gap: "8px" }}>
+                              <button
+                                onClick={() => handleAction(req.id, "approve")}
+                                disabled={actionLoadingId === req.id}
+                                className="btn btn-primary"
+                                style={{
+                                  padding: "7px 16px",
+                                  fontSize: "0.82rem",
+                                  fontWeight: 700,
+                                  background: "linear-gradient(135deg, #10b981, #059669)",
+                                  color: "#ffffff",
+                                  borderRadius: "8px",
+                                  border: "none",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {actionLoadingId === req.id ? <Loader2 className="animate-spin" size={14} /> : "Accept"}
+                              </button>
+                              <button
+                                onClick={() => handleAction(req.id, "reject")}
+                                disabled={actionLoadingId === req.id}
+                                className="btn btn-outline"
+                                style={{
+                                  padding: "7px 16px",
+                                  fontSize: "0.82rem",
+                                  fontWeight: 650,
+                                  color: "#ef4444",
+                                  borderColor: "#fca5a5",
+                                  background: "#ffffff",
+                                  borderRadius: "8px",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          ) : req.status === "approved" ? (
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => handleSendEmail(req.id)}
+                                disabled={emailSendingId === req.id}
+                                style={{
+                                  padding: "7px 14px",
+                                  fontSize: "0.8rem",
+                                  fontWeight: 700,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "6px",
+                                  background: sentEmailIds.includes(req.id) ? "#ecfdf5" : "#eff6ff",
+                                  color: sentEmailIds.includes(req.id) ? "#065f46" : "#1d4ed8",
+                                  border: sentEmailIds.includes(req.id) ? "1px solid #a7f3d0" : "1px solid #bfdbfe",
+                                  borderRadius: "8px",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {emailSendingId === req.id ? (
+                                  <>
+                                    <Loader2 className="animate-spin" size={13} /> Sending...
+                                  </>
+                                ) : sentEmailIds.includes(req.id) ? (
+                                  <>
+                                    <Check size={13} color="#059669" /> Sent
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send size={13} /> Send Mail
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: "0.8rem", color: "#94a3b8" }}>
+                              Closed
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -413,9 +532,9 @@ Support: presivox@gmail.com`;
         <footer style={{
           marginTop: "48px",
           padding: "24px 0",
-          borderTop: "1px solid rgba(255, 255, 255, 0.05)",
+          borderTop: "1px solid #e2e8f0",
           textAlign: "center",
-          color: "var(--text-muted)",
+          color: "#94a3b8",
           fontSize: "0.82rem",
           letterSpacing: "0.3px",
         }}>
