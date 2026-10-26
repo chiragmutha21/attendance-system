@@ -115,7 +115,7 @@ export async function POST(request: Request) {
     let uploadedImageUrl = registeredFaceImage;
     if (registeredFaceImage && registeredFaceImage.startsWith("data:image")) {
       try {
-        uploadedImageUrl = await uploadFaceImage(registeredFaceImage, companyId, employeeId);
+        uploadedImageUrl = await uploadFaceImage(companyId, employeeId, registeredFaceImage);
       } catch (uploadError) {
         console.warn("Storage upload fallback:", uploadError);
         uploadedImageUrl = registeredFaceImage;

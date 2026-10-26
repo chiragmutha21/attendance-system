@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     if (!planReq && !approvedCompany) {
       return NextResponse.json(
         {
-          error: "Account not found for this email. Please select an annual subscription plan on the homepage to register your organization.",
+          error: "Account not found for this email. First select your plan and fill the process. In 24 hours you will get an email from our team with your ID and password.",
         },
         { status: 403 }
       );
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
     if (planReq && planReq.status === "pending") {
       return NextResponse.json(
         {
-          error: "Your subscription request is currently pending Super Admin approval. Once approved, your account credentials will be activated within 48 hours and sent to your registered email address. Please wait for approval before logging in.",
+          error: "Your subscription request is currently pending Super Admin approval. In 24 hours you will get an email from our team with your ID and password once approved. Please wait for approval before logging in.",
           pendingApproval: true,
         },
         { status: 403 }

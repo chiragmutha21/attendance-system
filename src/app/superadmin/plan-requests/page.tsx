@@ -36,7 +36,11 @@ export default function SuperAdminPlanRequestsPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const getEmailContent = (item: PlanRequestItem) => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+    const origin = typeof window !== "undefined" && !window.location.origin.includes("localhost")
+      ? "https://presivox.com"
+      : typeof window !== "undefined"
+      ? window.location.origin
+      : "https://presivox.com";
     const subject = `Welcome to Presivox - Your ${item.planName} Attendance Portal is Active!`;
     const body = `Dear ${item.adminName},
 

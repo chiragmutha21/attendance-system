@@ -418,6 +418,19 @@ export default function Home() {
               </p>
             </div>
 
+            {/* Prominent English Process Notice Banner */}
+            <div className="plan-flow-notice-banner">
+              <div className="notice-icon-box">
+                <Sparkles size={22} />
+              </div>
+              <div>
+                <h4>First select your plan and fill the process.</h4>
+                <p>
+                  In 24 hours you will get an email from our team with your Admin ID and Password once approved by Super Admin.
+                </p>
+              </div>
+            </div>
+
             <div className="pricing">
               {/* Plan A */}
               <div className="plan">
@@ -655,11 +668,11 @@ export default function Home() {
                       margin: "0 0 8px",
                     }}
                   >
-                    &ldquo;you get confirmation on your registerd mail in 48 hours with id and pass&rdquo;
+                    &ldquo;First select your plan and fill the process. In 24 hours you get email from our team with your ID and password.&rdquo;
                   </p>
                   <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0 }}>
-                    Our onboarding team will review your <strong>{selectedPlan.name}</strong> subscription for{" "}
-                    <strong>{companyName}</strong> and send your admin credentials to <strong>{adminEmail}</strong>.
+                    Our team will review your <strong>{selectedPlan.name}</strong> subscription for{" "}
+                    <strong>{companyName}</strong>. Once approved by Super Admin, your login credentials will be delivered to <strong>{adminEmail}</strong>.
                   </p>
                 </div>
                 <button
@@ -673,7 +686,7 @@ export default function Home() {
               </div>
             ) : (
               <div>
-                <div style={{ marginBottom: "20px" }}>
+                <div style={{ marginBottom: "16px" }}>
                   <span className="eyebrow">{selectedPlan.name}</span>
                   <h3 style={{ fontSize: "24px", fontWeight: "850", color: "var(--ink)", margin: "8px 0 4px" }}>
                     Company Subscription Setup
@@ -683,6 +696,28 @@ export default function Home() {
                       ? "Unlimited Employees Capacity"
                       : `Capacity: Up to ${selectedPlan.employeeLimit} Employees`}
                   </p>
+                </div>
+
+                {/* Modal Top Process Banner */}
+                <div
+                  style={{
+                    background: "#eef4ff",
+                    border: "1px solid #c7d8fe",
+                    borderRadius: "12px",
+                    padding: "12px 14px",
+                    marginBottom: "16px",
+                    fontSize: "13px",
+                    color: "#1e3a8a",
+                    lineHeight: "1.5",
+                    display: "flex",
+                    gap: "10px",
+                    alignItems: "center",
+                  }}
+                >
+                  <Sparkles size={18} style={{ color: "var(--blue)", flexShrink: 0 }} />
+                  <span>
+                    <strong>Process:</strong> First select your plan and fill the process. In 24 hours you will get an email from our team with your ID and Password once approved by Super Admin.
+                  </span>
                 </div>
 
                 {/* Price Breakdown Box */}

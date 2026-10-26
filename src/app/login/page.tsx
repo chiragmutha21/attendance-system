@@ -147,15 +147,53 @@ function LoginContent() {
           />
         </div>
         
-        <p style={{ color: "var(--text-secondary)", fontSize: "0.92rem", marginBottom: "28px" }}>
+        <p style={{ color: "var(--text-secondary)", fontSize: "0.92rem", marginBottom: "22px" }}>
           Admin &amp; Workforce Attendance Portal
         </p>
+
+        {/* English Notice Banner for New Organizations */}
+        <div style={{
+          background: "#eef4ff",
+          border: "1.5px solid #c7d8fe",
+          borderRadius: "14px",
+          padding: "14px 16px",
+          marginBottom: "24px",
+          fontSize: "0.82rem",
+          color: "#1e3a8a",
+          lineHeight: "1.5",
+          textAlign: "left",
+          display: "flex",
+          gap: "10px",
+          alignItems: "flex-start",
+          boxShadow: "0 4px 14px rgba(53, 102, 236, 0.06)"
+        }}>
+          <Sparkles size={18} style={{ color: "var(--blue)", flexShrink: 0, marginTop: "2px" }} />
+          <div>
+            <strong style={{ color: "#112850", display: "block", marginBottom: "3px" }}>First time here?</strong>
+            First select your plan and fill the process. In 24 hours you will get an email from our team with your ID and Password once approved by Super Admin.
+            <div style={{ marginTop: "8px" }}>
+              <a
+                href="/#pricing"
+                style={{
+                  color: "#3566ec",
+                  fontWeight: 750,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  textDecoration: "none",
+                }}
+              >
+                Select an Annual Plan &amp; Register →
+              </a>
+            </div>
+          </div>
+        </div>
 
         {/* Email & Password Authentication Form */}
         <form onSubmit={handleEmailAuth} style={{ display: "flex", flexDirection: "column", gap: "18px", textAlign: "left" }}>
           <div className="form-group" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}>
-              <Mail size={14} /> Email Address
+              <Mail size={14} /> Registered Work Email
             </label>
             <input
               type="email"
@@ -186,19 +224,12 @@ function LoginContent() {
           </div>
 
           <div style={{
-            background: "rgba(139, 92, 246, 0.05)",
-            border: "1px solid rgba(139, 92, 246, 0.15)",
-            borderRadius: "8px",
-            padding: "10px 12px",
             fontSize: "0.78rem",
-            color: "var(--text-secondary)",
+            color: "#64748b",
             lineHeight: "1.4",
-            display: "flex",
-            flexDirection: "column",
-            gap: "2px"
+            padding: "0 2px"
           }}>
-            <span style={{ color: "#fff", fontWeight: 600 }}>Important Note:</span>
-            <span>If this is your first sign in, the email and password you enter now will be used for all future logins. Please keep them safe.</span>
+            Enter the Admin ID and Password delivered to your email upon Super Admin approval.
           </div>
 
           <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: "100%", marginTop: "6px", height: "46px" }}>
@@ -206,7 +237,7 @@ function LoginContent() {
               <Loader2 className="animate-spin" size={18} />
             ) : (
               <>
-                <LogIn size={18} /> Enter Portal
+                <LogIn size={18} /> Enter Admin Portal
               </>
             )}
           </button>
@@ -216,41 +247,39 @@ function LoginContent() {
         <div style={{
           display: "flex",
           alignItems: "center",
-          margin: "24px 0",
+          margin: "24px 0 16px",
           color: "var(--text-muted)",
           fontSize: "0.75rem",
           textTransform: "uppercase",
           letterSpacing: "1px"
         }}>
           <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }} />
-          <span style={{ padding: "0 10px" }}>or continue with</span>
+          <span style={{ padding: "0 10px" }}>New Organization?</span>
           <div style={{ flex: 1, height: "1px", background: "#e2e8f0" }} />
         </div>
 
-        {/* Google Authentication Button */}
-        <button
-          type="button"
+        {/* Action button redirecting new clients to plan pricing */}
+        <a
+          href="/#pricing"
           className="btn btn-secondary"
-          onClick={signInWithGoogle}
-          disabled={loading}
           style={{
             width: "100%",
             height: "46px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: "10px",
+            gap: "8px",
             fontSize: "0.92rem",
-            fontWeight: 650
+            fontWeight: 700,
+            textDecoration: "none",
+            color: "var(--ink)",
+            background: "#f8fafc",
+            border: "1px solid #cbd5e1"
           }}
         >
-          {loading ? (
-            <Loader2 className="animate-spin" size={18} />
-          ) : (
-            <ShieldCheck size={18} color="var(--blue)" />
-          )}
-          Sign in with Google
-        </button>
+          <Sparkles size={17} color="var(--blue)" />
+          Choose Plan &amp; Register Organization →
+        </a>
 
 
         {/* Feedback Messages */}

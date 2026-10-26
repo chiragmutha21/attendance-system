@@ -792,3 +792,44 @@ footer {
     padding: 24px;
   }
 }
+
+.plan-flow-notice-banner {
+  background: linear-gradient(135deg, #eef4ff 0%, #f4f8ff 100%);
+  border: 1.5px solid #c7d8fe;
+  border-radius: 18px;
+  padding: 18px 24px;
+  margin: 0 auto 36px;
+  max-width: 880px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 8px 24px rgba(53, 102, 236, 0.08);
+  text-align: left;
+}
+
+.plan-flow-notice-banner .notice-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #3566ec;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.plan-flow-notice-banner h4 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #112850;
+}
+
+.plan-flow-notice-banner p {
+  margin: 0;
+  font-size: 13.5px;
+  color: #4b5d78;
+  line-height: 1.5;
+}
+

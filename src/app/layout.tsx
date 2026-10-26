@@ -3,8 +3,30 @@ import "./globals.css";
 import "./landing.css";
 
 export const metadata: Metadata = {
-  title: "Smart Attendance Portal",
-  description: "Secure QR-based Employee Attendance System with GPS Location & Live Selfie Verification.",
+  metadataBase: new URL("https://presivox.com"),
+  title: "Presivox — Verified Presence. Simplified. | presivox.com",
+  description: "Secure QR-based Employee Attendance System with GPS Location & Live Selfie Verification — presivox.com",
+  icons: {
+    icon: "/images/presivox-logo.png",
+    shortcut: "/images/presivox-logo.png",
+    apple: "/images/presivox-logo.png",
+  },
+  openGraph: {
+    title: "Presivox — Verified Presence. Simplified.",
+    description: "Secure QR-based Employee Attendance System with GPS Location & Live Selfie Verification",
+    url: "https://presivox.com",
+    siteName: "Presivox",
+    images: [
+      {
+        url: "/images/presivox-logo.png",
+        width: 800,
+        height: 600,
+        alt: "Presivox Logo",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
 };
 
 export const viewport: Viewport = {

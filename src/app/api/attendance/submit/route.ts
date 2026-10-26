@@ -4,8 +4,7 @@ import { calculateDistance } from "@/lib/utils";
 import { getOfficeConfig } from "@/lib/tenant";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
-import { existsSync } from "fs";
-import { getCompanyFolderName } from "@/lib/storage";
+import { getCompanyFolderName, uploadSelfieImage } from "@/lib/storage";
 
 export async function POST(request: Request) {
   try {
@@ -101,70 +100,16 @@ export async function POST(request: Request) {
 
     const isWithinRadius = minDistance <= nearestBranch.radiusMeters;
 
-    // 6. Save Selfie Image
+    // 6. Save Selfie Image (Cloudinary primary, fallback to Supabase / local mock)
     let selfieUrl = "";
-    
-    // Check for mock mode
-    const isMock = process.env.MOCK_MODE === "true";
-    const folderName = await getCompanyFolderName(link.companyId);
-
-    if (isMock) {
-      // Process Base64 image upload and save to public/uploads/EMPLOYEE_SELFIE/<folderName>/
-      const base64Data = selfie.replace(/^data:image\/\w+;base64,/, "");
-      const buffer = Buffer.from(base64Data, "base64");
-      
-      const fileName = `${employee.employeeId}_${Date.now()}.jpg`;
-      
-      // Ensure public/uploads/EMPLOYEE_SELFIE/<folderName> directory exists
-      const uploadDir = join(process.cwd(), "public", "uploads", "EMPLOYEE_SELFIE", folderName);
-      if (!existsSync(uploadDir)) {
-        await mkdir(uploadDir, { recursive: true });
-      }
-
-      const filePath = join(uploadDir, fileName);
-      await writeFile(filePath, buffer);
-      
-      // Publicly accessible URL in Next.js public directory
-      selfieUrl = `/uploads/EMPLOYEE_SELFIE/${folderName}/${fileName}`;
-      console.log(`[MOCK MODE] Saved selfie locally: ${selfieUrl}`);
-    } else {
-      // Production Mode: Upload to EMPLOYEE_SELFIE bucket under <folderName>/ folder
-      const base64Data = selfie.replace(/^data:image\/\w+;base64,/, "");
-      const buffer = Buffer.from(base64Data, "base64");
-      const fileName = `${employee.employeeId}_${Date.now()}.jpg`;
-
-      // Lazy import Supabase to avoid exceptions if keys aren't set
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-      
-      if (!supabaseUrl || !supabaseKey) {
-        throw new Error("Supabase production environment credentials are not configured.");
-      }
-
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      const bucketName = "EMPLOYEE_SELFIE";
-      const filePath = `${folderName}/${fileName}`;
-
-      const { data, error } = await supabase.storage
-        .from(bucketName)
-        .upload(filePath, buffer, {
-          contentType: "image/jpeg",
-          upsert: true
-        });
-
-      if (error) {
-        console.error("Supabase Storage upload error:", error);
-        throw new Error(`Failed to upload selfie to cloud storage: ${error.message}`);
-      }
-
-      // Get public URL
-      const { data: publicUrlData } = supabase.storage
-        .from(bucketName)
-        .getPublicUrl(filePath);
-        
-      selfieUrl = publicUrlData.publicUrl;
-      console.log(`[PRODUCTION MODE] Saved selfie to EMPLOYEE_SELFIE bucket: ${selfieUrl}`);
+    try {
+      selfieUrl = await uploadSelfieImage(link.companyId, employee.employeeId, selfie);
+    } catch (uploadErr: any) {
+      console.error("Selfie upload error:", uploadErr);
+      return NextResponse.json(
+        { error: `Failed to upload attendance selfie: ${uploadErr.message}` },
+        { status: 500 }
+      );
     }
 
     // 6.5 Validate session constraints (prevent double check-in and handle overnight open sessions)
