@@ -350,21 +350,29 @@ export default function AdminDashboard() {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        const lat = parseFloat(position.coords.latitude.toFixed(6));
+        const lng = parseFloat(position.coords.longitude.toFixed(6));
+
         setOfficeConfig((prev) => ({
           ...prev,
-          latitude: parseFloat(position.coords.latitude.toFixed(6)),
-          longitude: parseFloat(position.coords.longitude.toFixed(6)),
+          latitude: lat,
+          longitude: lng,
         }));
+
+        if (mapRef.current) {
+          mapRef.current.setView([lat, lng], 17);
+        }
+
         setLocating(false);
       },
       (error) => {
         console.error("Error getting location:", error);
-        alert(`Failed to retrieve location: ${error.message}`);
+        alert(`Failed to retrieve location: ${error.message}. You can click directly on the map or drag the blue pin to pinpoint your office.`);
         setLocating(false);
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
+        timeout: 15000,
         maximumAge: 0,
       }
     );
@@ -384,24 +392,76 @@ export default function AdminDashboard() {
     }
 
     const { latitude, longitude, radius } = officeConfig;
-    const mainOfficeBranch = branches.find(b => b.isMainOffice) || { latitude, longitude, radiusMeters: radius };
+    const centerLat = latitude || 19.269008;
+    const centerLng = longitude || 72.967725;
 
-    // Create Map centered at main office
-    const map = L.map("admin-map").setView([mainOfficeBranch.latitude, mainOfficeBranch.longitude], 14);
+    // Create Map centered at office
+    const map = L.map("admin-map").setView([centerLat, centerLng], 15);
     mapRef.current = map;
 
-    // Add Tile Layer
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: "abcd",
-      maxZoom: 20
+    // Add OpenStreetMap Standard Tile Layer (Free, reliable, no API key required)
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19
     }).addTo(map);
 
-    // Draw all branches
-    branches.forEach((b) => {
-      const isMain = b.isMainOffice;
-      const branchColor = isMain ? "var(--color-primary)" : "#3b82f6";
-      const branchGlow = isMain ? "var(--color-primary-glow)" : "rgba(59, 130, 246, 0.4)";
+    // Draggable Main Office Pin
+    const mainOfficePin = L.divIcon({
+      html: `<div style="background-color: #2563eb; width: 18px; height: 18px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 14px rgba(37, 99, 235, 0.7); cursor: grab;"></div>`,
+      className: "custom-main-office-pin",
+      iconSize: [18, 18],
+      iconAnchor: [9, 9]
+    });
+
+    const officeMarker = L.marker([centerLat, centerLng], { 
+      icon: mainOfficePin, 
+      draggable: true 
+    }).addTo(map);
+
+    officeMarker.bindPopup("<strong>Main Office Pin</strong><br/>Drag pin or click map to set exact office gate/building.").openPopup();
+
+    const officeCircle = L.circle([centerLat, centerLng], {
+      color: "#2563eb",
+      fillColor: "#3b82f6",
+      fillOpacity: 0.15,
+      radius: radius || 100
+    }).addTo(map);
+
+    // Live update when dragging marker
+    officeMarker.on("drag", (e: any) => {
+      const pos = e.target.getLatLng();
+      officeCircle.setLatLng(pos);
+    });
+
+    officeMarker.on("dragend", (e: any) => {
+      const pos = e.target.getLatLng();
+      const roundedLat = parseFloat(pos.lat.toFixed(6));
+      const roundedLng = parseFloat(pos.lng.toFixed(6));
+      setOfficeConfig(prev => ({
+        ...prev,
+        latitude: roundedLat,
+        longitude: roundedLng,
+      }));
+    });
+
+    // Click anywhere on map to reposition office pin
+    map.on("click", (e: any) => {
+      const { lat, lng } = e.latlng;
+      const roundedLat = parseFloat(lat.toFixed(6));
+      const roundedLng = parseFloat(lng.toFixed(6));
+      officeMarker.setLatLng([roundedLat, roundedLng]);
+      officeCircle.setLatLng([roundedLat, roundedLng]);
+      setOfficeConfig(prev => ({
+        ...prev,
+        latitude: roundedLat,
+        longitude: roundedLng,
+      }));
+    });
+
+    // Draw other branches if any
+    branches.filter(b => !b.isMainOffice).forEach((b) => {
+      const branchColor = "#8b5cf6";
+      const branchGlow = "rgba(139, 92, 246, 0.4)";
 
       const branchIcon = L.divIcon({
         html: `<div style="background-color: ${branchColor}; width: 14px; height: 14px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 10px ${branchGlow}"></div>`,
@@ -410,13 +470,9 @@ export default function AdminDashboard() {
         iconAnchor: [7, 7]
       });
 
-      const marker = L.marker([b.latitude, b.longitude], { icon: branchIcon })
+      L.marker([b.latitude, b.longitude], { icon: branchIcon })
         .addTo(map)
-        .bindPopup(`<strong>${b.name}</strong>${isMain ? " (Main Office)" : ""}<br/>${b.address || ""}`);
-
-      if (isMain) {
-        marker.openPopup();
-      }
+        .bindPopup(`<strong>${b.name}</strong><br/>${b.address || ""}`);
 
       L.circle([b.latitude, b.longitude], {
         color: branchColor,
@@ -702,6 +758,9 @@ export default function AdminDashboard() {
               <MapPin size={16} color="var(--color-secondary)" />
             </div>
             <div id="admin-map" className={styles.leafletContainer} style={{ minHeight: "300px" }}></div>
+            <p style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginTop: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+              💡 <span><strong>Tip:</strong> Click anywhere on the map or drag the blue pin to pinpoint your exact office building.</span>
+            </p>
           </div>
 
           {/* Config Settings Column */}

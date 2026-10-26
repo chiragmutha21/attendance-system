@@ -51,15 +51,32 @@ export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: Si
         const supabase = getSupabaseBrowserClient();
         const { data: { session } } = await supabase.auth.getSession();
 
-        const res = await fetch("/api/admin/companies", {
-          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
-        });
+        const adminEmail = (localStorage.getItem("adminEmail") || "").toLowerCase().trim();
+        const storedCompanyId = localStorage.getItem("selectedCompanyId") || "";
+
+        const headers: Record<string, string> = {};
+        if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+        if (adminEmail) headers["x-admin-email"] = adminEmail;
+        if (storedCompanyId) headers["x-company-id"] = storedCompanyId;
+
+        const res = await fetch("/api/admin/companies", { headers });
         const data = await res.json();
-        if (data.success) {
-          setCompanies(data.companies);
-          localStorage.setItem("sidebar_companies", JSON.stringify(data.companies));
-          const stored = localStorage.getItem("selectedCompanyId");
-          const active = data.companies.find((c: Company) => c.id === stored) || data.companies[0];
+        if (data.success && Array.isArray(data.companies)) {
+          // Extra safety: Filter out any other companies if admin email or company id is set
+          let userCompanies = data.companies;
+          if (adminEmail || storedCompanyId) {
+            const strictlyMatched = data.companies.filter((c: any) => 
+              (adminEmail && c.adminEmail && c.adminEmail.toLowerCase() === adminEmail) ||
+              (storedCompanyId && c.id === storedCompanyId)
+            );
+            if (strictlyMatched.length > 0) {
+              userCompanies = strictlyMatched;
+            }
+          }
+
+          setCompanies(userCompanies);
+          localStorage.setItem("sidebar_companies", JSON.stringify(userCompanies));
+          const active = userCompanies.find((c: Company) => c.id === storedCompanyId) || userCompanies[0];
           if (active) {
             setSelectedCompanyId(active.id);
             localStorage.setItem("selectedCompanyId", active.id);
@@ -178,43 +195,66 @@ export default function Sidebar({ activeKey, onCompanyChange, isSuperAdmin }: Si
             <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: "6px" }}>
               Active Company
             </label>
-            <div style={{ position: "relative" }}>
-              <select
-                value={selectedCompanyId}
-                onChange={handleCompanyChange}
-                style={{
-                  width: "100%",
-                  background: "rgba(255, 255, 255, 0.05)",
-                  border: "1px solid var(--border-light)",
-                  borderRadius: "8px",
-                  padding: "10px 12px",
-                  color: "#fff",
-                  fontSize: "0.85rem",
-                  outline: "none",
-                  cursor: "pointer",
-                  appearance: "none",
-                  WebkitAppearance: "none",
-                  paddingRight: "30px",
-                  fontWeight: 600,
-                }}
-              >
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id} style={{ background: "#111827", color: "#f3f4f6" }}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+            {companies.length === 1 ? (
               <div style={{
-                position: "absolute",
-                right: "12px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                pointerEvents: "none",
-                borderLeft: "5px solid transparent",
-                borderRight: "5px solid transparent",
-                borderTop: "5px solid var(--text-secondary)",
-              }} />
-            </div>
+                width: "100%",
+                background: "#f8fafc",
+                border: "1px solid #cbd5e1",
+                borderRadius: "8px",
+                padding: "10px 14px",
+                color: "#0f172a",
+                fontSize: "0.88rem",
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+              }}>
+                <Building2 size={16} color="#2563eb" />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {companies[0].name}
+                </span>
+              </div>
+            ) : (
+              <div style={{ position: "relative" }}>
+                <select
+                  value={selectedCompanyId}
+                  onChange={handleCompanyChange}
+                  style={{
+                    width: "100%",
+                    background: "#f8fafc",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "8px",
+                    padding: "10px 12px",
+                    color: "#0f172a",
+                    fontSize: "0.88rem",
+                    outline: "none",
+                    cursor: "pointer",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    paddingRight: "30px",
+                    fontWeight: 700,
+                    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)"
+                  }}
+                >
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id} style={{ background: "#ffffff", color: "#0f172a", fontWeight: 600 }}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <div style={{
+                  position: "absolute",
+                  right: "12px",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  pointerEvents: "none",
+                  borderLeft: "5px solid transparent",
+                  borderRight: "5px solid transparent",
+                  borderTop: "5px solid #475569",
+                }} />
+              </div>
+            )}
           </div>
         )}
 

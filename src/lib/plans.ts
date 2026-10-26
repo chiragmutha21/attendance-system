@@ -92,6 +92,7 @@ export interface PlanRequestItem {
   generatedPassword?: string;
   companyId?: string;
   approvedAt?: string;
+  onboarded?: boolean;
   createdAt: string;
   updatedAt: string;
 }

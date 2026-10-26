@@ -316,33 +316,36 @@ function FestivalsContent() {
                   <div 
                     key={idx}
                     style={{
-                      background: "rgba(255, 255, 255, 0.02)",
-                      border: "1px solid rgba(255, 255, 255, 0.05)",
+                      background: "#ffffff",
+                      border: "1px solid #e2e8f0",
                       borderRadius: "12px",
-                      padding: "16px",
+                      padding: "16px 20px",
                       display: "flex",
                       justifyContent: "space-between",
-                      alignItems: "center"
+                      alignItems: "center",
+                      boxShadow: "0 2px 6px rgba(0, 0, 0, 0.04)"
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 700, color: "#fff", fontSize: "1rem" }}>{f.name}</div>
-                      <div style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
-                        <Calendar size={13} />
-                        {formatDate(f.date)}
+                      <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "1.05rem", marginBottom: "4px" }}>
+                        {f.name}
+                      </div>
+                      <div style={{ color: "#475569", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "6px" }}>
+                        <Calendar size={14} color="#6366f1" />
+                        <span style={{ fontWeight: 600 }}>{formatDate(f.date)}</span>
                       </div>
                     </div>
                     <div style={{
-                      width: "36px",
-                      height: "36px",
+                      width: "40px",
+                      height: "40px",
                       borderRadius: "50%",
-                      background: "rgba(139, 92, 246, 0.1)",
+                      background: "rgba(99, 102, 241, 0.12)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      color: "var(--color-primary)"
+                      color: "#4f46e5"
                     }}>
-                      <Gift size={16} />
+                      <Gift size={18} />
                     </div>
                   </div>
                 ))}
@@ -372,8 +375,8 @@ function FestivalsContent() {
                         gap: "12px",
                         padding: "12px 16px",
                         borderRadius: "8px",
-                        background: isChecked ? "rgba(139, 92, 246, 0.06)" : "rgba(255,255,255,0.01)",
-                        border: isChecked ? "1px solid rgba(139, 92, 246, 0.2)" : "1px solid rgba(255,255,255,0.04)",
+                        background: isChecked ? "rgba(99, 102, 241, 0.08)" : "#f8fafc",
+                        border: isChecked ? "1px solid rgba(99, 102, 241, 0.4)" : "1px solid #e2e8f0",
                         cursor: "pointer",
                         transition: "all 0.2s"
                       }}
@@ -384,14 +387,14 @@ function FestivalsContent() {
                         onChange={() => handleCheckboxChange(p.name, p.date)}
                         style={{
                           accentColor: "var(--color-primary)",
-                          width: "16px",
-                          height: "16px",
+                          width: "18px",
+                          height: "18px",
                           cursor: "pointer"
                         }}
                       />
                       <div>
-                        <div style={{ fontWeight: 600, color: "#fff", fontSize: "0.9rem" }}>{p.name}</div>
-                        <div style={{ color: "var(--text-secondary)", fontSize: "0.78rem", marginTop: "2px" }}>{formatDate(p.date)}</div>
+                        <div style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.92rem" }}>{p.name}</div>
+                        <div style={{ color: "#64748b", fontSize: "0.8rem", marginTop: "2px" }}>{formatDate(p.date)}</div>
                       </div>
                     </label>
                   );
@@ -444,10 +447,10 @@ function FestivalsContent() {
                         display: "flex",
                         gap: "16px",
                         alignItems: "center",
-                        background: "rgba(255,255,255,0.01)",
+                        background: "#f8fafc",
                         padding: "12px",
                         borderRadius: "8px",
-                        border: "1px solid rgba(255,255,255,0.04)"
+                        border: "1px solid #e2e8f0"
                       }}
                     >
                       <div style={{ flex: 2 }}>

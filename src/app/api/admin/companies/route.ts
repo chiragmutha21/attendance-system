@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { companySchema, formatZodError } from "@/lib/validation";
 import { DEFAULT_COMPANY_ID, companySettingKey, ensureDefaultCompany, ensureAuthUser, defaultOfficeConfig } from "@/lib/tenant";
-import { getLocalCompanies } from "@/lib/planRequests";
+import { getLocalCompanies, findPlanRequestByEmail } from "@/lib/planRequests";
 import { cookies } from "next/headers";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
@@ -37,52 +37,121 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, companies });
     }
 
+    // Determine calling admin user's identity
+    const cookieStore = await cookies();
+    const adminEmailCookie = cookieStore.get("admin_email")?.value;
+    const adminCompanyIdCookie = cookieStore.get("admin_company_id")?.value;
+    const headerAdminEmail = request.headers.get("x-admin-email");
+    const headerCompanyId = request.headers.get("x-company-id");
+
+    let effectiveEmail = (headerAdminEmail || adminEmailCookie || "").toLowerCase().trim();
+    let effectiveCompanyId = headerCompanyId || adminCompanyIdCookie || "";
+
     const authHeader = request.headers.get("authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
 
-    if (!token) {
-      const local = getLocalCompanies();
-      const demoCompany = {
-        id: DEFAULT_COMPANY_ID,
-        name: "Demo Company",
-        companyCode: "01",
-        adminName: "Admin",
-        adminEmail: "admin@example.com",
-        adminPhone: "+919999999999",
-        countryCode: "+91",
-        employeeLimit: 25,
-        status: "active",
-        officeLatitude: defaultOfficeConfig.latitude,
-        officeLongitude: defaultOfficeConfig.longitude,
-        officeRadiusMeters: defaultOfficeConfig.radius,
-        _count: { employees: 2 },
-      };
-      const list = local && local.length > 0 ? local : [demoCompany];
-      return NextResponse.json({ success: true, companies: list });
+    if (token && token !== "local-admin-token") {
+      try {
+        const supabase = getSupabaseServerClient();
+        const { data, error } = await supabase.auth.getUser(token);
+        if (!error && data.user?.email) {
+          effectiveEmail = data.user.email.toLowerCase().trim();
+        }
+      } catch (authErr) {
+        // Fallback
+      }
     }
 
-    const supabase = getSupabaseServerClient();
-    const { data, error } = await supabase.auth.getUser(token);
+    const demoCompany = {
+      id: DEFAULT_COMPANY_ID,
+      name: "Demo Company",
+      companyCode: "01",
+      adminName: "Admin",
+      adminEmail: "admin@example.com",
+      adminPhone: "+919999999999",
+      countryCode: "+91",
+      employeeLimit: 25,
+      status: "active",
+      officeLatitude: defaultOfficeConfig.latitude,
+      officeLongitude: defaultOfficeConfig.longitude,
+      officeRadiusMeters: defaultOfficeConfig.radius,
+      _count: { employees: 2 },
+    };
 
-    if (error || !data.user?.email) {
-      return NextResponse.json({ error: "Invalid auth token" }, { status: 401 });
+    // If demo admin requested or no email specified, return only Demo Company
+    if (effectiveEmail === "admin@example.com") {
+      return NextResponse.json({ success: true, companies: [demoCompany] });
     }
 
-    const email = data.user.email.toLowerCase();
+    // Retrieve matching companies from local store and database
+    const local = getLocalCompanies();
+    let matchingCompanies: any[] = [];
 
-    const companies = await db.company.findMany({
-      where: {
-        adminEmail: email,
-      },
-      include: {
-        _count: {
-          select: { employees: true },
-        },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    if (effectiveEmail || effectiveCompanyId) {
+      // 1. Check local companies store
+      const localMatches = local.filter((c) => {
+        if (effectiveEmail && c.adminEmail && c.adminEmail.toLowerCase() === effectiveEmail) return true;
+        if (effectiveCompanyId && c.id === effectiveCompanyId) return true;
+        return false;
+      });
+      matchingCompanies.push(...localMatches);
 
-    return NextResponse.json({ success: true, companies });
+      // 2. Check Database companies
+      try {
+        const dbMatches = await db.company.findMany({
+          where: {
+            OR: [
+              ...(effectiveEmail ? [{ adminEmail: effectiveEmail }] : []),
+              ...(effectiveCompanyId ? [{ id: effectiveCompanyId }] : []),
+            ],
+          },
+          include: {
+            _count: {
+              select: { employees: true },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        });
+
+        for (const dbComp of dbMatches) {
+          if (!matchingCompanies.some((c) => c.id === dbComp.id)) {
+            matchingCompanies.push(dbComp);
+          }
+        }
+      } catch (dbErr) {
+        // Prisma error fallback
+      }
+    }
+
+    // If still no company found but we have a plan request for this email, provide the company representation
+    if (matchingCompanies.length === 0 && effectiveEmail) {
+      const planReq = findPlanRequestByEmail(effectiveEmail);
+      if (planReq) {
+        matchingCompanies.push({
+          id: planReq.companyId || `comp_${planReq.id}`,
+          name: planReq.companyName,
+          companyCode: "01",
+          adminName: planReq.adminName,
+          adminEmail: planReq.adminEmail,
+          adminPhone: planReq.adminPhone,
+          countryCode: "+91",
+          employeeLimit: planReq.employeeLimit,
+          status: "active",
+          officeLatitude: 28.6139,
+          officeLongitude: 77.2090,
+          officeRadiusMeters: 200,
+          _count: { employees: 0 },
+        });
+      }
+    }
+
+    // Strict Isolation: If an admin email was provided, return ONLY their matching company
+    if (matchingCompanies.length > 0) {
+      return NextResponse.json({ success: true, companies: matchingCompanies });
+    }
+
+    // Default fallback if completely unauthenticated
+    return NextResponse.json({ success: true, companies: [demoCompany] });
   } catch (error: any) {
     console.warn("Database connection unavailable, using fallback company list:", error.message);
     return NextResponse.json({

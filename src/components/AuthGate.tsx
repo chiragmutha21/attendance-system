@@ -37,9 +37,44 @@ export default function AuthGate({ children, requireSuperAdmin = false, allowOnb
       );
 
       if (isLocal) {
+        const storedCompanyId = localStorage.getItem("selectedCompanyId") || "00000000-0000-0000-0000-000000000000";
         if (!localStorage.getItem("selectedCompanyId")) {
-          localStorage.setItem("selectedCompanyId", "00000000-0000-0000-0000-000000000000");
+          localStorage.setItem("selectedCompanyId", storedCompanyId);
         }
+
+        const isSuperAdminLocal = 
+          document.cookie.includes("local_admin_session=superadmin") || 
+          localStorage.getItem("local_admin_session") === "superadmin";
+
+        // Check if onboarding is needed for 1st time new company admin
+        if (!isSuperAdminLocal && !allowOnboarding) {
+          const adminEmail = (localStorage.getItem("adminEmail") || "").toLowerCase().trim();
+          const isMarkedOnboarded = 
+            localStorage.getItem("onboarded_" + storedCompanyId) === "true" ||
+            (adminEmail && localStorage.getItem("onboarded_" + adminEmail) === "true") ||
+            document.cookie.includes("admin_onboarded=true");
+
+          if (!isMarkedOnboarded && adminEmail && adminEmail !== "admin@example.com") {
+            try {
+              const res = await fetch("/api/auth/profile", {
+                headers: {
+                  "x-admin-email": adminEmail,
+                  "x-company-id": storedCompanyId,
+                },
+              });
+              if (res.ok) {
+                const profile = await res.json();
+                if (profile.needsOnboarding) {
+                  window.location.href = "/onboarding";
+                  return;
+                }
+              }
+            } catch (err) {
+              console.warn("AuthGate profile check fallback:", err);
+            }
+          }
+        }
+
         globalIsAuthed = true;
         setChecking(false);
         return;

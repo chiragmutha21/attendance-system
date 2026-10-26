@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { getSupabaseServerClient } from "@/lib/supabaseServer";
+import { getLocalCompanies, findPlanRequestByEmail } from "@/lib/planRequests";
 
 export async function GET(request: Request) {
   try {
@@ -20,6 +21,51 @@ export async function GET(request: Request) {
         role: "SUPER_ADMIN",
         companyId: null,
         needsOnboarding: false,
+      });
+    }
+
+    const adminEmailCookie = cookieStore.get("admin_email")?.value;
+    const adminCompanyIdCookie = cookieStore.get("admin_company_id")?.value;
+    const headerAdminEmail = request.headers.get("x-admin-email");
+    const headerCompanyId = request.headers.get("x-company-id");
+
+    const effectiveAdminEmail = (headerAdminEmail || adminEmailCookie || "").toLowerCase().trim();
+    const effectiveCompanyId = headerCompanyId || adminCompanyIdCookie || "";
+
+    // If an authenticated client admin has session or headers
+    if (effectiveAdminEmail && effectiveAdminEmail !== "admin@example.com") {
+      const local = getLocalCompanies();
+      const planReq = findPlanRequestByEmail(effectiveAdminEmail);
+      let company = local.find((c) => c.adminEmail?.toLowerCase() === effectiveAdminEmail || (effectiveCompanyId && c.id === effectiveCompanyId));
+
+      if (!company) {
+        try {
+          company = await db.company.findFirst({
+            where: {
+              OR: [
+                { adminEmail: effectiveAdminEmail },
+                ...(effectiveCompanyId ? [{ id: effectiveCompanyId }] : []),
+              ],
+            },
+          }) as any;
+        } catch (e) {}
+      }
+
+      const isOnboarded = !!((company as any)?.onboarded || planReq?.onboarded);
+      const companyId = company?.id || planReq?.companyId || effectiveCompanyId;
+      const companyName = company?.name || planReq?.companyName || "My Company";
+
+      return NextResponse.json({
+        success: true,
+        user: { email: effectiveAdminEmail, name: company?.adminName || planReq?.adminName || "Admin" },
+        role: "ADMIN",
+        companyId,
+        company: company || {
+          id: companyId,
+          name: companyName,
+          status: "active",
+        },
+        needsOnboarding: !isOnboarded,
       });
     }
 

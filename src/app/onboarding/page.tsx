@@ -78,6 +78,15 @@ function OnboardingContent() {
     );
   };
 
+  useEffect(() => {
+    const storedCompany = localStorage.getItem("companyName") || "";
+    if (storedCompany) setCompanyName(storedCompany);
+    const storedLimit = localStorage.getItem("employeeLimit") || "";
+    if (storedLimit) setEmployeeLimit(storedLimit);
+    const storedMode = localStorage.getItem("attendanceMode") as any;
+    if (storedMode) setAttendanceMode(storedMode);
+  }, []);
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
@@ -91,24 +100,30 @@ function OnboardingContent() {
 
     try {
       const supabase = getSupabaseBrowserClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      let accessToken = "";
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        accessToken = session?.access_token || "";
+      } catch (e) {}
 
-      if (!session?.access_token) {
-        window.location.href = "/login";
-        return;
-      }
+      const adminEmail = (localStorage.getItem("adminEmail") || "").toLowerCase().trim();
+      const selectedCompanyId = localStorage.getItem("selectedCompanyId") || "";
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+      if (adminEmail) headers["x-admin-email"] = adminEmail;
+      if (selectedCompanyId) headers["x-company-id"] = selectedCompanyId;
 
       const res = await fetch("/api/auth/onboarding", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers,
         body: JSON.stringify({
           name: companyName,
           adminName,
+          adminEmail,
+          companyId: selectedCompanyId,
           adminPhone: "+91" + phoneDigits,
           countryCode: "+91",
           employeeLimit,
@@ -131,7 +146,15 @@ function OnboardingContent() {
         return;
       }
 
-      setSuccessCompanyId(data.companyId);
+      const compId = data.companyId || selectedCompanyId;
+      localStorage.setItem("selectedCompanyId", compId);
+      localStorage.setItem("companyName", companyName);
+      localStorage.setItem("onboarded_" + compId, "true");
+      if (adminEmail) localStorage.setItem("onboarded_" + adminEmail, "true");
+      document.cookie = "admin_onboarded=true; path=/; max-age=31536000; SameSite=Lax";
+      document.cookie = `admin_company_id=${encodeURIComponent(compId)}; path=/; max-age=31536000; SameSite=Lax`;
+
+      setSuccessCompanyId(compId);
       setShowSuccessModal(true);
     } catch (err) {
       console.error(err);
@@ -142,18 +165,30 @@ function OnboardingContent() {
   };
 
   const handleRedirect = () => {
-    if (successCompanyId) {
-      localStorage.setItem("selectedCompanyId", successCompanyId);
-      window.location.href = "/admin";
+    const finalCompId = successCompanyId || localStorage.getItem("selectedCompanyId") || "";
+    if (finalCompId) {
+      localStorage.setItem("selectedCompanyId", finalCompId);
     }
+    window.location.href = "/admin";
   };
 
   return (
     <div className={styles.adminLayout}>
       <main style={{ flex: 1, padding: "40px 24px", maxWidth: "580px", margin: "0 auto" }}>
-        <div className={styles.brand} style={{ marginBottom: "20px" }}>
-          <Sparkles className={styles.brandIcon} size={22} />
-          <span className="glow-text-purple">SmartOffice</span>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "24px" }}>
+          <img
+            src="/presivox_logo.png"
+            alt="Presivox"
+            style={{ width: "190px", height: "auto", display: "block", marginBottom: "6px" }}
+          />
+          <a
+            href="https://www.solutionplanets.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: "0.78rem", color: "#64748b", textDecoration: "none", fontWeight: 600 }}
+          >
+            A Product of <span style={{ color: "#2563eb", textDecoration: "underline" }}>Solution Planets</span>
+          </a>
         </div>
 
         {showSuccessModal ? (
@@ -173,11 +208,11 @@ function OnboardingContent() {
                 <CheckCircle size={32} />
               </div>
             </div>
-            <h1 className="glow-text-purple" style={{ color: "#fff", fontSize: "1.6rem", fontWeight: 800, marginBottom: "12px" }}>Company Setup Complete!</h1>
+            <h1 style={{ color: "#0f172a", fontSize: "1.6rem", fontWeight: 800, marginBottom: "12px" }}>Company Setup Complete!</h1>
             <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.6", marginBottom: "28px" }}>
-              Your check-in and check-out images will be sent to your company email in 48 hours.
+              Your company details and office location have been saved. You can now access your admin dashboard.
             </p>
-            <button type="button" className="btn btn-primary" onClick={handleRedirect} style={{ width: "100%", height: "46px" }}>
+            <button type="button" className="btn btn-primary" onClick={handleRedirect} style={{ width: "100%", height: "46px", fontWeight: 700 }}>
               Go to Dashboard
             </button>
           </div>

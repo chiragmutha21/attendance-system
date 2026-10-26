@@ -140,6 +140,14 @@ export async function POST(request: Request) {
       const employeeLimit = planReq?.employeeLimit || (companyData as any)?.employeeLimit || 50;
       const attendanceMode = planReq?.attendanceMode || (companyData as any)?.attendanceMode || "with_photo";
 
+      // Check whether this new user/company has completed the 1st time onboarding form
+      const isAlreadyOnboarded =
+        emailLower === "admin@example.com" ||
+        (companyData as any)?.onboarded === true ||
+        (planReq as any)?.onboarded === true;
+
+      const needsOnboarding = !isAlreadyOnboarded;
+
       const response = NextResponse.json({
         success: true,
         email: emailLower,
@@ -149,10 +157,23 @@ export async function POST(request: Request) {
         planId,
         employeeLimit,
         attendanceMode,
+        needsOnboarding,
         localSession: true,
       });
 
       response.cookies.set("local_admin_session", "admin", {
+        path: "/",
+        maxAge: 86400,
+        sameSite: "lax",
+      });
+
+      response.cookies.set("admin_email", emailLower, {
+        path: "/",
+        maxAge: 86400,
+        sameSite: "lax",
+      });
+
+      response.cookies.set("admin_company_id", companyId, {
         path: "/",
         maxAge: 86400,
         sameSite: "lax",

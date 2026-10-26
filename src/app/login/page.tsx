@@ -96,6 +96,9 @@ function LoginContent() {
       if (helperData.companyId) {
         localStorage.setItem("selectedCompanyId", helperData.companyId);
       }
+      if (helperData.companyName) {
+        localStorage.setItem("companyName", helperData.companyName);
+      }
       if (helperData.planId) {
         localStorage.setItem("activePlanId", helperData.planId);
       }
@@ -106,8 +109,20 @@ function LoginContent() {
         localStorage.setItem("employeeLimit", String(helperData.employeeLimit));
       }
 
+      localStorage.setItem("adminEmail", emailLower);
+      localStorage.removeItem("sidebar_companies"); // clear old cache so only this admin's company loads
+
+      document.cookie = `admin_email=${encodeURIComponent(emailLower)}; path=/; max-age=86400; SameSite=Lax`;
+      document.cookie = `admin_company_id=${encodeURIComponent(helperData.companyId || "")}; path=/; max-age=86400; SameSite=Lax`;
+
       localStorage.setItem("local_admin_session", "1");
-      document.cookie = "local_admin_session=admin; path=/; max-age=86400";
+      document.cookie = "local_admin_session=admin; path=/; max-age=86400; SameSite=Lax";
+
+      // If new user requires 1st time setup, redirect to onboarding form
+      if (helperData.needsOnboarding) {
+        window.location.href = "/onboarding";
+        return;
+      }
 
       const next = searchParams.get("next") || "";
       window.location.href = next || "/admin";
