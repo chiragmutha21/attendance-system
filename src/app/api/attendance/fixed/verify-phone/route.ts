@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getLocalCompanies, findPlanRequestByCompanyId } from "@/lib/planRequests";
 
 export async function GET(request: Request) {
   try {
@@ -41,8 +42,27 @@ export async function GET(request: Request) {
       );
     }
 
+    // Determine company's configured attendance mode (with_photo vs without_photo)
+    let attendanceMode: "with_photo" | "without_photo" = "with_photo";
+    try {
+      const local = getLocalCompanies();
+      const localComp = local.find((c) => c.id === employee.companyId);
+      const planReq = findPlanRequestByCompanyId(employee.companyId);
+      const dbCompany = await db.company.findUnique({ where: { id: employee.companyId } });
+
+      const mode = localComp?.attendanceMode || planReq?.attendanceMode;
+      const sub = (dbCompany?.subscription || "").toLowerCase();
+
+      if (mode === "without_photo" || sub.includes("plan a") || sub.includes("plan-a") || sub.includes("without")) {
+        attendanceMode = "without_photo";
+      }
+    } catch (e) {
+      // Fallback
+    }
+
     return NextResponse.json({
       success: true,
+      attendanceMode,
       employee: {
         employeeId: employee.employeeId,
         fullName: employee.fullName,
@@ -50,6 +70,7 @@ export async function GET(request: Request) {
         role: employee.role,
         registeredFaceImage: employee.registeredFaceImage,
         companyId: employee.companyId,
+        attendanceMode,
       },
     });
   } catch (error: any) {

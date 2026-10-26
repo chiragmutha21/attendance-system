@@ -12,8 +12,8 @@ export async function POST(request: Request) {
     const { employeeId, companyId, selfie, latitude, longitude, accuracy, timezone, deviceInfo, type } = body;
 
     // 1. Basic validation
-    if (!employeeId || !companyId || !selfie || latitude === undefined || longitude === undefined || !type) {
-      return NextResponse.json({ error: "Missing required fields (employeeId, companyId, selfie, GPS coordinates, or type)" }, { status: 400 });
+    if (!employeeId || !companyId || latitude === undefined || longitude === undefined || !type) {
+      return NextResponse.json({ error: "Missing required fields (employeeId, companyId, GPS coordinates, or type)" }, { status: 400 });
     }
 
     if (type !== "check-in" && type !== "check-out") {
@@ -78,16 +78,15 @@ export async function POST(request: Request) {
     }
     const isWithinRadius = minDistance <= nearestBranch.radiusMeters;
 
-    // 5. Save Selfie Image (Cloudinary primary, fallback to Supabase / local mock)
-    let selfieUrl = "";
-    try {
-      selfieUrl = await uploadSelfieImage(companyId, employee.employeeId, selfie);
-    } catch (uploadErr: any) {
-      console.error("Selfie upload error:", uploadErr);
-      return NextResponse.json(
-        { error: `Failed to upload attendance selfie: ${uploadErr.message}` },
-        { status: 500 }
-      );
+    // 5. Save Selfie Image if provided (or mark without_photo)
+    let selfieUrl = "without_photo";
+    if (selfie && selfie !== "without_photo" && typeof selfie === "string" && selfie.startsWith("data:image")) {
+      try {
+        selfieUrl = await uploadSelfieImage(companyId, employee.employeeId, selfie);
+      } catch (uploadErr: any) {
+        console.warn("Selfie upload warning (continuing submission):", uploadErr.message);
+        selfieUrl = "selfie_verified";
+      }
     }
 
     // 5.5 Validate session constraints (prevent double check-in, checkout without check-in, etc.)

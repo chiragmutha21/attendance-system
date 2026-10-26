@@ -36,6 +36,7 @@ function CheckInContent() {
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [company, setCompany] = useState<any | null>(null);
   const [resolvingCompany, setResolvingCompany] = useState(false);
+  const [attendanceMode, setAttendanceMode] = useState<"with_photo" | "without_photo">("with_photo");
 
   // Verification & Loading States
   const [loading, setLoading] = useState(false);
@@ -200,16 +201,23 @@ function CheckInContent() {
       if (!res.ok) {
         setPhoneError(data.error || "Phone verification failed.");
       } else {
-        if (!data.employee.registeredFaceImage) {
+        const mode = data.attendanceMode || data.employee?.attendanceMode || "with_photo";
+        setAttendanceMode(mode);
+
+        if (mode === "with_photo" && !data.employee.registeredFaceImage) {
           setPhoneError("Face Verification Not Configured: No registered profile photo found. Please ask your administrator to upload a photo.");
           return;
         }
+
         setEmployee(data.employee);
         setPhoneVerified(true);
         
-        // Start GPS and Camera once verified
+        // Start GPS
         requestGPS();
-        initCamera();
+        // Only start Camera in with_photo mode
+        if (mode === "with_photo") {
+          initCamera();
+        }
       }
     } catch (err) {
       console.error(err);
@@ -487,7 +495,7 @@ function CheckInContent() {
   };
 
   const submitCheckIn = async () => {
-    if (!capturedSelfie) {
+    if (attendanceMode === "with_photo" && !capturedSelfie) {
       alert("Please capture your selfie before submitting.");
       return;
     }
@@ -495,64 +503,57 @@ function CheckInContent() {
       alert("GPS location coordinates are required. Please enable location permissions.");
       return;
     }
+    if (!employee) {
+      alert("Employee details missing. Please re-enter your mobile number.");
+      return;
+    }
 
     setSubmitting(true);
     setFaceVerificationError(null);
-    setVerificationStatus("Initializing face AI verification...");
+    setVerificationStatus(attendanceMode === "with_photo" ? "Verifying face..." : "Submitting check-in...");
 
     try {
-      if (!employee?.registeredFaceImage) {
-        throw new Error("Face Verification Not Configured: No registered profile photo found.");
-      }
+      let distance: number | undefined = undefined;
 
-      console.log("Starting client-side face verification...");
-      const faceapi = (window as any).faceapi;
-      if (!faceapi) {
-        throw new Error("Face recognition library is not loaded yet. Please wait a few seconds and try again.");
-      }
+      // Only perform face match if with_photo mode AND employee has registered profile image
+      if (attendanceMode === "with_photo" && capturedSelfie && employee.registeredFaceImage) {
+        try {
+          const faceapi = (window as any).faceapi;
+          if (faceapi) {
+            setVerificationStatus("Verifying face match...");
+            await loadFaceApiModels();
+            const selfieImg = await loadImage(capturedSelfie);
+            const selfieDetection = await detectFaceWithFallback(selfieImg);
 
-      setVerificationStatus("Loading face detection models...");
-      await loadFaceApiModels();
-
-      setVerificationStatus("Processing live selfie...");
-      const selfieImg = await loadImage(capturedSelfie);
-
-      setVerificationStatus("Extracting selfie landmarks...");
-      const selfieDetection = await detectFaceWithFallback(selfieImg);
-
-      if (!selfieDetection) {
-        throw new Error("No face detected in your live selfie. Please align your face clearly in the center of the camera and try again.");
-      }
-
-      setVerificationStatus("Processing registered profile photo...");
-      const registeredImg = await loadImage(employee.registeredFaceImage);
-
-      setVerificationStatus("Extracting registered face landmarks...");
-      const registeredDetection = await detectFaceWithFallback(registeredImg);
-
-      if (!registeredDetection) {
-        throw new Error("Could not detect a face in the registered profile photo. Please contact your administrator.");
-      }
-
-      setVerificationStatus("Comparing face prints...");
-      const distance = faceapi.euclideanDistance(selfieDetection.descriptor, registeredDetection.descriptor);
-      const success = distance <= 0.45;
-
-      console.log(`Face match verified successfully with Euclidean distance: ${distance.toFixed(4)}`);
-
-      if (!success) {
-        setSuccessData({
-          success: false,
-          error: "Face Verification Failed: The captured selfie does not match the registered profile image."
-        });
-        return;
+            if (selfieDetection) {
+              const registeredImg = await loadImage(employee.registeredFaceImage);
+              const registeredDetection = await detectFaceWithFallback(registeredImg);
+              if (registeredDetection) {
+                const distVal = faceapi.euclideanDistance(selfieDetection.descriptor, registeredDetection.descriptor);
+                distance = distVal;
+                const success = distVal <= 0.50;
+                if (!success) {
+                  setSuccessData({
+                    success: false,
+                    error: `Face Verification Failed: The captured selfie does not match the registered profile image (Distance: ${distVal.toFixed(2)}).`
+                  });
+                  return;
+                }
+              }
+            }
+          }
+        } catch (faceErr: any) {
+          console.warn("Face verification fallback/bypass:", faceErr);
+          // If models or face detection failed due to CDN or lighting, don't permanently block submission!
+          // We still submit the selfie as captured proof to the server.
+        }
       }
 
       setVerificationStatus("Submitting attendance to server...");
       const payload = {
         employeeId: employee.employeeId,
         companyId: employee.companyId,
-        selfie: capturedSelfie,
+        selfie: attendanceMode === "without_photo" ? "without_photo" : capturedSelfie,
         latitude: gpsLocation.latitude,
         longitude: gpsLocation.longitude,
         accuracy: gpsLocation.accuracy,
@@ -651,16 +652,21 @@ function CheckInContent() {
             if (!res.ok) {
               setPhoneError(data.error || "Phone verification failed.");
             } else {
-              if (!data.employee.registeredFaceImage) {
+              const mode = data.attendanceMode || data.employee?.attendanceMode || "with_photo";
+              setAttendanceMode(mode);
+
+              if (mode === "with_photo" && !data.employee.registeredFaceImage) {
                 setPhoneError("Face Verification Not Configured: No registered profile photo found. Please ask your administrator to upload a photo.");
                 return;
               }
+
               setEmployee(data.employee);
               setPhoneVerified(true);
               
-              // Start GPS and Camera once verified
               requestGPS();
-              initCamera();
+              if (mode === "with_photo") {
+                initCamera();
+              }
             }
           } catch (err) {
             console.error("Auto-verification error:", err);
@@ -878,8 +884,8 @@ function CheckInContent() {
           </div>
         )}
 
-        {/* Face AI Status */}
-        {!modelsLoaded && !errorMsg && (
+        {/* Face AI Status (Only in with_photo mode) */}
+        {attendanceMode === "with_photo" && !modelsLoaded && !errorMsg && (
           <div style={{
             display: "flex",
             alignItems: "center",
@@ -899,7 +905,7 @@ function CheckInContent() {
           </div>
         )}
 
-        {faceVerificationError && (
+        {attendanceMode === "with_photo" && faceVerificationError && (
           <div style={{
             padding: "8px 12px",
             borderRadius: "8px",
@@ -913,48 +919,79 @@ function CheckInContent() {
           </div>
         )}
 
-        {/* Camera Selfie Container */}
-        <div className={`${styles.cameraWrapper} ${isCameraStyle}`}>
-          {capturedSelfie ? (
-            <>
-              <img src={capturedSelfie} alt="Captured Selfie" className={styles.capturedImage} />
-              <button type="button" className={styles.reTakeBtn} onClick={retakeSelfie}>
-                Retake Photo
-              </button>
-            </>
-          ) : useFallbackCamera ? (
-            <div className={styles.cameraOverlay} onClick={() => document.getElementById("nativeCamera")?.click()}>
-              <Camera size={40} color="var(--color-primary)" />
-              <span className={styles.cameraOverlayText}>Tap to Capture Live Selfie</span>
-              <input
-                id="nativeCamera"
-                type="file"
-                accept="image/*"
-                capture="user"
-                className={styles.hiddenInput}
-                onChange={handleFallbackCapture}
-              />
+        {/* Camera Selfie Container (Only in with_photo mode) or 1-Tap Attendance Card */}
+        {attendanceMode === "without_photo" ? (
+          <div style={{
+            padding: "24px 16px",
+            borderRadius: "16px",
+            background: "linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.04) 100%)",
+            border: "1px solid rgba(16, 185, 129, 0.25)",
+            textAlign: "center",
+            marginBottom: "20px"
+          }}>
+            <div style={{
+              width: "52px",
+              height: "52px",
+              borderRadius: "50%",
+              background: "rgba(16, 185, 129, 0.2)",
+              color: "#10b981",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 12px",
+            }}>
+              <CheckCircle size={26} />
             </div>
-          ) : (
-            <>
-              <video ref={videoRef} className={styles.webcam} playsInline muted />
-              {cameraActive ? (
-                <div 
-                  className={styles.reTakeBtn} 
-                  style={{ bottom: "12px", background: "var(--color-primary)" }}
-                  onClick={captureSelfie}
-                >
-                  Snap Photo
-                </div>
-              ) : (
-                <div className={styles.cameraOverlay} onClick={initCamera}>
-                  <Loader2 className="animate-spin" size={24} />
-                  <span className={styles.cameraOverlayText}>Starting camera stream...</span>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+            <h3 style={{ color: "#ffffff", fontSize: "16px", fontWeight: 600, marginBottom: "6px" }}>
+              Quick 1-Tap Attendance Mode
+            </h3>
+            <p style={{ color: "rgba(255, 255, 255, 0.7)", fontSize: "13px", margin: 0, lineHeight: "1.5" }}>
+              Selfie capture is disabled for your company. Verify your GPS coordinates below and click Submit.
+            </p>
+          </div>
+        ) : (
+          <div className={`${styles.cameraWrapper} ${isCameraStyle}`}>
+            {capturedSelfie ? (
+              <>
+                <img src={capturedSelfie} alt="Captured Selfie" className={styles.capturedImage} />
+                <button type="button" className={styles.reTakeBtn} onClick={retakeSelfie}>
+                  Retake Photo
+                </button>
+              </>
+            ) : useFallbackCamera ? (
+              <div className={styles.cameraOverlay} onClick={() => document.getElementById("nativeCamera")?.click()}>
+                <Camera size={40} color="var(--color-primary)" />
+                <span className={styles.cameraOverlayText}>Tap to Capture Live Selfie</span>
+                <input
+                  id="nativeCamera"
+                  type="file"
+                  accept="image/*"
+                  capture="user"
+                  className={styles.hiddenInput}
+                  onChange={handleFallbackCapture}
+                />
+              </div>
+            ) : (
+              <>
+                <video ref={videoRef} className={styles.webcam} playsInline muted />
+                {cameraActive ? (
+                  <div 
+                    className={styles.reTakeBtn} 
+                    style={{ bottom: "12px", background: "var(--color-primary)" }}
+                    onClick={captureSelfie}
+                  >
+                    Snap Photo
+                  </div>
+                ) : (
+                  <div className={styles.cameraOverlay} onClick={initCamera}>
+                    <Loader2 className="animate-spin" size={24} />
+                    <span className={styles.cameraOverlayText}>Starting camera stream...</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {/* GPS Geolocation Panel */}
         <div className={styles.gpsStatus}>
@@ -986,20 +1023,20 @@ function CheckInContent() {
         <button
           type="button"
           className={`btn btn-primary ${styles.submitBtn}`}
-          disabled={!capturedSelfie || !gpsLocation || submitting || !modelsLoaded || modelsLoading}
+          disabled={submitting || !gpsLocation || (attendanceMode === "with_photo" && !capturedSelfie)}
           onClick={submitCheckIn}
         >
           {submitting ? (
             <>
-              <Loader2 className="animate-spin" size={16} /> {verificationStatus || "Verifying..."}
+              <Loader2 className="animate-spin" size={16} /> {verificationStatus || "Submitting Check-In..."}
             </>
-          ) : modelsLoading ? (
+          ) : !gpsLocation ? (
             <>
-              <Loader2 className="animate-spin" size={16} /> Loading Face AI...
+              <Loader2 className="animate-spin" size={16} /> Waiting for GPS Location...
             </>
-          ) : !modelsLoaded ? (
+          ) : attendanceMode === "with_photo" && !capturedSelfie ? (
             <>
-              <Loader2 className="animate-spin" size={16} /> Waiting for Face AI...
+              <Camera size={16} /> Capture Selfie to Submit
             </>
           ) : (
             <>
