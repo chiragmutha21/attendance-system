@@ -166,7 +166,36 @@ export function getLocalCompanies(): any[] {
       data = fs.readFileSync(SCRATCH_COMPANIES_FILE, "utf-8");
     }
     const parsed = JSON.parse(data);
-    return Array.isArray(parsed) ? parsed : [];
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed;
+    }
+
+    // Auto-populate from approved plan requests if empty
+    const planReqs = getAllPlanRequests();
+    const approved = planReqs.filter((r) => r.status === "approved");
+    if (approved.length > 0) {
+      const reconstructed = approved.map((r) => ({
+        id: r.companyId || `comp_${r.id}`,
+        name: r.companyName,
+        companyCode: "01",
+        adminName: r.adminName,
+        adminEmail: r.adminEmail,
+        adminPhone: r.adminPhone,
+        address: r.address,
+        countryCode: "+91",
+        employeeLimit: r.employeeLimit,
+        status: "active",
+        officeLatitude: 28.6139,
+        officeLongitude: 77.2090,
+        officeRadiusMeters: 200,
+        _count: { employees: 0 },
+        createdAt: r.createdAt,
+      }));
+      saveLocalCompanies(reconstructed);
+      return reconstructed;
+    }
+
+    return [];
   } catch {
     return [];
   }
