@@ -7,9 +7,12 @@ export const metadata: Metadata = {
   title: "Presivox — Verified Presence. Simplified. | presivox.com",
   description: "Secure QR-based Employee Attendance System with GPS Location & Live Selfie Verification — presivox.com",
   icons: {
-    icon: "/images/presivox-logo.png",
-    shortcut: "/images/presivox-logo.png",
-    apple: "/images/presivox-logo.png",
+    icon: [
+      { url: "/favicon.png", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
   },
   openGraph: {
     title: "Presivox — Verified Presence. Simplified.",
@@ -18,9 +21,9 @@ export const metadata: Metadata = {
     siteName: "Presivox",
     images: [
       {
-        url: "/images/presivox-logo.png",
+        url: "/favicon.png",
         width: 800,
-        height: 600,
+        height: 800,
         alt: "Presivox Logo",
       },
     ],
@@ -43,6 +46,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" type="image/png" href="/favicon.png" />
+        <link rel="shortcut icon" href="/favicon.png" />
+        <link rel="apple-touch-icon" href="/favicon.png" />
+      </head>
       <body>{children}</body>
     </html>
   );
