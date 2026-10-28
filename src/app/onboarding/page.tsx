@@ -1,20 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, Loader2, Sparkles, CheckCircle } from "lucide-react";
+import { Building2, Loader2, Sparkles, CheckCircle, ShieldCheck, Lock } from "lucide-react";
 import AuthGate from "@/components/AuthGate";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 import styles from "../admin/admin.module.css";
 
-const inferCountryCode = () => {
-  const locale = navigator.language || "";
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
-  if (locale.endsWith("-IN") || timezone === "Asia/Calcutta" || timezone === "Asia/Kolkata") return "+91";
-  if (locale.endsWith("-US")) return "+1";
-  if (locale.endsWith("-GB")) return "+44";
-  if (locale.endsWith("-AE")) return "+971";
-  return "+91";
-};
+export default function OnboardingPage() {
+  return (
+    <AuthGate allowOnboarding>
+      <OnboardingContent />
+    </AuthGate>
+  );
+}
 
 function OnboardingContent() {
   const [loading, setLoading] = useState(false);
@@ -23,9 +21,6 @@ function OnboardingContent() {
   const [companyName, setCompanyName] = useState("");
   const [phoneDigits, setPhoneDigits] = useState("");
   const [employeeLimit, setEmployeeLimit] = useState("25");
-  const [latitude, setLatitude] = useState("28.6139");
-  const [longitude, setLongitude] = useState("77.2090");
-  const [radius, setRadius] = useState("200");
   const [address, setAddress] = useState("");
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [logoName, setLogoName] = useState("");
@@ -35,6 +30,11 @@ function OnboardingContent() {
   const [attendanceMode, setAttendanceMode] = useState<"with_photo" | "without_photo">("with_photo");
   const [geofenceMode, setGeofenceMode] = useState<"strict" | "flexible">("strict");
   const [shiftStandard, setShiftStandard] = useState("8_hours");
+
+  // Keep location coordinates internally with reliable defaults (removed from form UI)
+  const [latitude] = useState("28.6139");
+  const [longitude] = useState("77.2090");
+  const [radius] = useState("200");
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setLogoError("");
@@ -61,30 +61,74 @@ function OnboardingContent() {
     reader.readAsDataURL(file);
   };
 
-  const fillOfficeLocation = () => {
-    setError("");
-    if (!navigator.geolocation) {
-      setError("Location is not supported by this browser.");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLatitude(position.coords.latitude.toFixed(6));
-        setLongitude(position.coords.longitude.toFixed(6));
-      },
-      () => setError("Location permission denied. Enter office coordinates manually."),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
-
+  // Auto-fill from payment / plan selection cached data & backend request
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // 1. Read from discrete keys
     const storedCompany = localStorage.getItem("companyName") || "";
     if (storedCompany) setCompanyName(storedCompany);
+
+    const storedAdminName = localStorage.getItem("adminName") || "";
+    if (storedAdminName) setAdminName(storedAdminName);
+
+    const storedPhone = localStorage.getItem("adminPhone") || "";
+    if (storedPhone) {
+      const digits = storedPhone.replace(/\D/g, "").slice(-10);
+      setPhoneDigits(digits);
+    }
+
+    const storedAddress = localStorage.getItem("address") || "";
+    if (storedAddress) setAddress(storedAddress);
+
     const storedLimit = localStorage.getItem("employeeLimit") || "";
     if (storedLimit) setEmployeeLimit(storedLimit);
+
     const storedMode = localStorage.getItem("attendanceMode") as any;
-    if (storedMode) setAttendanceMode(storedMode);
+    if (storedMode === "with_photo" || storedMode === "without_photo") {
+      setAttendanceMode(storedMode);
+    }
+
+    // 2. Read from presivox_user_cache
+    const cached = localStorage.getItem("presivox_user_cache");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed.companyName && !storedCompany) setCompanyName(parsed.companyName);
+        if (parsed.adminName && !storedAdminName) setAdminName(parsed.adminName);
+        if (parsed.adminPhone && !storedPhone) {
+          const digits = parsed.adminPhone.replace(/\D/g, "").slice(-10);
+          setPhoneDigits(digits);
+        }
+        if (parsed.address && !storedAddress) setAddress(parsed.address);
+        if (parsed.employeeLimit && !storedLimit) setEmployeeLimit(String(parsed.employeeLimit));
+        if (parsed.attendanceMode && !storedMode) setAttendanceMode(parsed.attendanceMode);
+      } catch (e) {
+        console.warn("Failed to parse cached details");
+      }
+    }
+
+    // 3. Fallback: Query by logged-in admin email from plan requests
+    const adminEmail = (localStorage.getItem("adminEmail") || "").toLowerCase().trim();
+    if (adminEmail) {
+      fetch(`/api/plan-requests?email=${encodeURIComponent(adminEmail)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.planRequest) {
+            const pr = data.planRequest;
+            if (pr.companyName) setCompanyName((prev) => prev || pr.companyName);
+            if (pr.adminName) setAdminName((prev) => prev || pr.adminName);
+            if (pr.adminPhone) {
+              const digits = pr.adminPhone.replace(/\D/g, "").slice(-10);
+              setPhoneDigits((prev) => prev || digits);
+            }
+            if (pr.address) setAddress((prev) => prev || pr.address);
+            if (pr.employeeLimit) setEmployeeLimit(String(pr.employeeLimit));
+            if (pr.attendanceMode) setAttendanceMode(pr.attendanceMode);
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
 
   const submit = async (event: React.FormEvent) => {
@@ -149,6 +193,7 @@ function OnboardingContent() {
       const compId = data.companyId || selectedCompanyId;
       localStorage.setItem("selectedCompanyId", compId);
       localStorage.setItem("companyName", companyName);
+      localStorage.setItem("attendanceMode", attendanceMode);
       localStorage.setItem("onboarded_" + compId, "true");
       if (adminEmail) localStorage.setItem("onboarded_" + adminEmail, "true");
       document.cookie = "admin_onboarded=true; path=/; max-age=31536000; SameSite=Lax";
@@ -210,7 +255,7 @@ function OnboardingContent() {
             </div>
             <h1 style={{ color: "#0f172a", fontSize: "1.6rem", fontWeight: 800, marginBottom: "12px" }}>Company Setup Complete!</h1>
             <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.6", marginBottom: "28px" }}>
-              Your company details and office location have been saved. You can now access your admin dashboard.
+              Your company details have been saved. You can now access your admin dashboard.
             </p>
             <button type="button" className="btn btn-primary" onClick={handleRedirect} style={{ width: "100%", height: "46px", fontWeight: 700 }}>
               Go to Dashboard
@@ -221,29 +266,49 @@ function OnboardingContent() {
             <div className={styles.cardHeader} style={{ marginBottom: "24px" }}>
               <div>
                 <h1 className={styles.headerTitle} style={{ fontSize: "1.5rem" }}>Company Setup</h1>
-                <p className={styles.headerSubtitle} style={{ fontSize: "0.85rem" }}>Create your company account before opening the dashboard.</p>
+                <p className={styles.headerSubtitle} style={{ fontSize: "0.85rem" }}>
+                  Review your company account details before opening the dashboard.
+                </p>
               </div>
               <Building2 size={20} color="var(--color-primary)" />
             </div>
 
-            <form onSubmit={submit} className={styles.settingsForm} style={{ gap: "14px" }}>
+            <form onSubmit={submit} className={styles.settingsForm} style={{ gap: "16px" }}>
               <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Company Name</label>
-                <input className="form-input" required value={companyName} onChange={(event) => setCompanyName(event.target.value)} />
+                <label className={styles.formLabel}>Company Name *</label>
+                <input 
+                  className="form-input" 
+                  required 
+                  value={companyName} 
+                  onChange={(event) => setCompanyName(event.target.value)} 
+                  placeholder="Enter company name"
+                />
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Office Address</label>
-                <input className="form-input" required value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Enter main office address" />
+                <label className={styles.formLabel}>Office Address *</label>
+                <input 
+                  className="form-input" 
+                  required 
+                  value={address} 
+                  onChange={(event) => setAddress(event.target.value)} 
+                  placeholder="Enter main office address" 
+                />
               </div>
 
               <div className={styles.formGridTwo}>
                 <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>Your Name</label>
-                  <input className="form-input" required value={adminName} onChange={(event) => setAdminName(event.target.value)} />
+                  <label className={styles.formLabel}>Your Name *</label>
+                  <input 
+                    className="form-input" 
+                    required 
+                    value={adminName} 
+                    onChange={(event) => setAdminName(event.target.value)} 
+                    placeholder="Enter your full name"
+                  />
                 </div>
                 <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>Admin WhatsApp Number</label>
+                  <label className={styles.formLabel}>Admin WhatsApp Number *</label>
                   <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                     <span style={{ 
                       padding: "12px 14px", 
@@ -274,30 +339,39 @@ function OnboardingContent() {
                 </div>
               </div>
 
-              <div className={styles.formGridTwo}>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>Employee Limit</label>
-                  <input type="number" min="1" className="form-input" required value={employeeLimit} onChange={(event) => setEmployeeLimit(event.target.value)} />
-                </div>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>Allowed Office Radius (Meters)</label>
-                  <input type="number" min="25" className="form-input" required value={radius} onChange={(event) => setRadius(event.target.value)} />
-                </div>
+              {/* Employee Limit - Auto set based on Plan, non-editable */}
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span>Employee Capacity Limit</span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--color-primary)", display: "flex", alignItems: "center", gap: "4px", fontWeight: 600 }}>
+                    <Lock size={12} /> Auto-fixed by Plan
+                  </span>
+                </label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  readOnly 
+                  disabled
+                  value={
+                    parseInt(employeeLimit) >= 999990
+                      ? "Unlimited Employees (Plan C)"
+                      : `${employeeLimit} Employees (Plan Limit)`
+                  } 
+                  style={{
+                    background: "rgba(255, 255, 255, 0.04)",
+                    color: "var(--text-primary)",
+                    cursor: "not-allowed",
+                    fontWeight: 600,
+                    letterSpacing: "0.3px",
+                  }}
+                />
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px" }}>
+                  Fixed to your selected subscription plan. You cannot change this capacity here.
+                </span>
               </div>
 
-              <div className={styles.formGridTwo}>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>Office Latitude</label>
-                  <input type="number" step="0.000001" className="form-input" required value={latitude} onChange={(event) => setLatitude(event.target.value)} />
-                </div>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>Office Longitude</label>
-                  <input type="number" step="0.000001" className="form-input" required value={longitude} onChange={(event) => setLongitude(event.target.value)} />
-                </div>
-              </div>
-
-              <div className={styles.formGroup} style={{ marginBottom: "12px" }}>
-                <label className={styles.formLabel}>Company Logo (For Check-in/Check-out screens)</label>
+              <div className={styles.formGroup} style={{ marginBottom: "6px" }}>
+                <label className={styles.formLabel}>Company Logo (Optional)</label>
                 <input 
                   type="file" 
                   accept="image/*" 
@@ -314,38 +388,57 @@ function OnboardingContent() {
 
               {error && <span className={styles.formError}>{error}</span>}
 
-              {/* Company Setup Questions */}
+              {/* Company Setup Configuration */}
               <div style={{
                 background: "rgba(139, 92, 246, 0.06)",
                 border: "1px solid rgba(139, 92, 246, 0.2)",
                 borderRadius: "12px",
                 padding: "18px",
                 display: "grid",
-                gap: "16px",
-                margin: "12px 0",
+                gap: "14px",
+                margin: "8px 0",
               }}>
                 <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#fff", display: "flex", alignItems: "center", gap: "8px" }}>
                   <Sparkles size={16} color="var(--color-primary)" />
                   Attendance Verification Configuration
                 </div>
 
-                {/* Question 1: Photo vs Without Photo */}
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>Attendance Verification Mode</label>
-                  <select
-                    className="form-input"
-                    value={attendanceMode}
-                    onChange={(e) => setAttendanceMode(e.target.value as any)}
-                  >
-                    <option value="with_photo">📸 With Photo (AI Face Verification & Selfie Required)</option>
-                    <option value="without_photo">⚡ Without Photo (Fast 1-Tap QR & Mobile Verification)</option>
-                  </select>
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px" }}>
-                    Select whether employees must take a selfie when scanning the QR code.
+                {/* Inherited Verification Mode from Payment */}
+                <div style={{
+                  background: "rgba(255, 255, 255, 0.04)",
+                  border: "1px solid var(--border-light)",
+                  borderRadius: "8px",
+                  padding: "12px 14px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                }}>
+                  <div>
+                    <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginBottom: "2px" }}>
+                      Selected Attendance Mode (From Plan Payment)
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#fff", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <ShieldCheck size={16} color="var(--color-success)" />
+                      {attendanceMode === "without_photo"
+                        ? "⚡ Without Photo (Fast 1-Tap QR & Mobile Number)"
+                        : "📸 With Photo (AI Face Verification & Selfie)"}
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: "0.72rem",
+                    padding: "3px 8px",
+                    borderRadius: "6px",
+                    background: "rgba(16, 185, 129, 0.12)",
+                    color: "var(--color-success)",
+                    fontWeight: 600,
+                  }}>
+                    Active from Payment
                   </span>
                 </div>
 
-                {/* Question 2: GPS Enforcement */}
+                {/* Question 1: GPS Enforcement */}
                 <div className={styles.formGroup}>
                   <label className={styles.formLabel}>Office Geofence Enforcement</label>
                   <select
@@ -358,7 +451,7 @@ function OnboardingContent() {
                   </select>
                 </div>
 
-                {/* Question 3: Shift Hours */}
+                {/* Question 2: Shift Hours */}
                 <div className={styles.formGroup}>
                   <label className={styles.formLabel}>Daily Standard Shift Hours</label>
                   <select
@@ -373,12 +466,9 @@ function OnboardingContent() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
-                <button type="button" className="btn btn-outline" onClick={fillOfficeLocation} style={{ flex: 1 }}>
-                  Use My Location
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={loading} style={{ flex: 1 }}>
-                  {loading ? <Loader2 className="animate-spin" size={16} /> : "Create Company"}
+              <div style={{ marginTop: "12px" }}>
+                <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: "100%", height: "46px", fontWeight: 700 }}>
+                  {loading ? <Loader2 className="animate-spin" size={16} /> : "Complete Company Setup →"}
                 </button>
               </div>
             </form>
@@ -405,13 +495,5 @@ function OnboardingContent() {
         </footer>
       </main>
     </div>
-  );
-}
-
-export default function OnboardingPage() {
-  return (
-    <AuthGate allowOnboarding>
-      <OnboardingContent />
-    </AuthGate>
   );
 }

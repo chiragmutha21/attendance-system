@@ -102,17 +102,56 @@ export async function getCompanyIdFromRequest(request: Request) {
   const headerCompanyId = request.headers.get("x-company-id")?.trim();
   console.log(`[getCompanyIdFromRequest] header x-company-id: "${headerCompanyId}"`);
   if (headerCompanyId) {
-    const company = await db.company.findUnique({
-      where: { id: headerCompanyId },
-      select: { id: true, name: true },
-    });
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(headerCompanyId);
+    let company: { id: string; name: string } | null = null;
+
+    if (isUuid) {
+      company = await db.company.findUnique({
+        where: { id: headerCompanyId },
+        select: { id: true, name: true },
+      });
+    } else {
+      company = await db.company.findFirst({
+        where: { companyCode: headerCompanyId },
+        select: { id: true, name: true },
+      });
+    }
 
     if (company) {
       console.log(`[getCompanyIdFromRequest] Resolved via header to: ${company.name} (${company.id})`);
       return company.id;
     } else {
-      console.log(`[getCompanyIdFromRequest] Header company ID not found in database.`);
+      // Check local companies store
+      try {
+        const { getLocalCompanies } = await import("./planRequests");
+        const local = getLocalCompanies();
+        const localComp = local.find((c: any) => c.id === headerCompanyId);
+        if (localComp) {
+          return localComp.id;
+        }
+      } catch {}
+
+      if (headerCompanyId !== "undefined" && headerCompanyId !== "null" && headerCompanyId.length > 0) {
+        return headerCompanyId;
+      }
     }
+  }
+
+  // Check admin email header
+  const headerAdminEmail = request.headers.get("x-admin-email")?.trim().toLowerCase();
+  if (headerAdminEmail && headerAdminEmail !== "admin@example.com") {
+    try {
+      const comp = await db.company.findFirst({
+        where: { adminEmail: headerAdminEmail },
+        select: { id: true, name: true },
+      });
+      if (comp) return comp.id;
+
+      const { getLocalCompanies } = await import("./planRequests");
+      const local = getLocalCompanies();
+      const localComp = local.find((c: any) => c.adminEmail && c.adminEmail.toLowerCase() === headerAdminEmail);
+      if (localComp) return localComp.id;
+    } catch {}
   }
 
   const firstCompany = await db.company.findFirst({
@@ -127,18 +166,46 @@ export async function getCompanyIdFromRequest(request: Request) {
 }
 
 export async function getOfficeConfig(companyId: string) {
-  const company = await db.company.findUnique({
-    where: { id: companyId },
-    select: { officeLatitude: true, officeLongitude: true, officeRadiusMeters: true },
-  });
+  let company: any = null;
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(companyId);
 
-  if (!company || company.officeLatitude === null || company.officeLongitude === null) {
-    return defaultOfficeConfig;
+  if (isUuid) {
+    try {
+      company = await db.company.findUnique({
+        where: { id: companyId },
+        select: { officeLatitude: true, officeLongitude: true, officeRadiusMeters: true },
+      });
+    } catch (err) {
+      console.warn("DB getOfficeConfig warning:", err);
+    }
+  }
+
+  // Also check local companies store
+  let localComp: any = null;
+  try {
+    const { getLocalCompanies } = await import("./planRequests");
+    const local = getLocalCompanies();
+    localComp = local.find((c: any) => c.id === companyId);
+  } catch {}
+
+  const lat = company?.officeLatitude ?? localComp?.officeLatitude;
+  const lng = company?.officeLongitude ?? localComp?.officeLongitude;
+  const radius = company?.officeRadiusMeters ?? localComp?.officeRadiusMeters ?? 200;
+
+  const isDefaultDelhi = (lat === 28.6139 && (lng === 77.209 || lng === 77.2090));
+  const isSaved = localComp?.locationSaved === true || (lat !== null && lat !== undefined && !isDefaultDelhi);
+
+  if (lat === null || lat === undefined) {
+    return {
+      ...defaultOfficeConfig,
+      locationSaved: false,
+    };
   }
 
   return {
-    latitude: company.officeLatitude,
-    longitude: company.officeLongitude,
-    radius: company.officeRadiusMeters,
+    latitude: lat,
+    longitude: lng,
+    radius: radius,
+    locationSaved: Boolean(isSaved),
   };
 }

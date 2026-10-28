@@ -29,6 +29,7 @@ function CheckInContent() {
   const searchParams = useSearchParams();
   const companyCode = params?.companyCode as string;
   const queryCompanyId = searchParams?.get("companyId") || "";
+  const queryBranchId = searchParams?.get("branchId") || "";
 
   const [mobileNumber, setMobileNumber] = useState("");
   const [phoneVerified, setPhoneVerified] = useState(false);
@@ -553,6 +554,7 @@ function CheckInContent() {
       const payload = {
         employeeId: employee.employeeId,
         companyId: employee.companyId,
+        branchId: queryBranchId || undefined,
         selfie: attendanceMode === "without_photo" ? "without_photo" : capturedSelfie,
         latitude: gpsLocation.latitude,
         longitude: gpsLocation.longitude,

@@ -60,6 +60,8 @@ export default function EmployeeRegistry() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [branches, setBranches] = useState<any[]>([]);
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
+  const [isLocationConfigured, setIsLocationConfigured] = useState<boolean>(true);
+  const [showLocationRequiredModal, setShowLocationRequiredModal] = useState<boolean>(false);
 
   const [companyCountryCode] = useState("+91");
 
@@ -102,10 +104,35 @@ export default function EmployeeRegistry() {
     fetchCompanies();
   }, []);
 
+  const checkLocationStatus = async (compId: string) => {
+    if (!compId) return;
+    try {
+      const stored = localStorage.getItem("locationConfigured_" + compId);
+      if (stored === "true") {
+        setIsLocationConfigured(true);
+        return;
+      }
+      const res = await fetch("/api/admin/settings", {
+        headers: { "x-company-id": compId },
+      });
+      const data = await res.json();
+      if (data.success && data.officeConfig) {
+        const isSaved = Boolean(data.officeConfig.locationSaved);
+        setIsLocationConfigured(isSaved);
+        if (isSaved) {
+          localStorage.setItem("locationConfigured_" + compId, "true");
+        }
+      }
+    } catch (err) {
+      console.error("Check location error:", err);
+    }
+  };
+
   useEffect(() => {
     if (selectedCompanyId) {
       fetchEmployees();
       fetchBranches();
+      checkLocationStatus(selectedCompanyId);
     }
   }, [selectedCompanyId]);
 
@@ -132,6 +159,9 @@ export default function EmployeeRegistry() {
         if (nextCompany) {
           setSelectedCompanyId(nextCompany.id);
           localStorage.setItem("selectedCompanyId", nextCompany.id);
+          if ((nextCompany as any).locationSaved !== undefined) {
+            setIsLocationConfigured(Boolean((nextCompany as any).locationSaved));
+          }
         }
       }
     } catch (err) {
@@ -171,6 +201,16 @@ export default function EmployeeRegistry() {
   };
 
   const openAddModal = () => {
+    const isSaved = 
+      isLocationConfigured ||
+      (selectedCompany as any)?.locationSaved === true ||
+      (typeof window !== "undefined" && localStorage.getItem("locationConfigured_" + selectedCompanyId) === "true");
+
+    if (!isSaved) {
+      setShowLocationRequiredModal(true);
+      return;
+    }
+
     if (selectedCompany && selectedCompany.employeeLimit && selectedCompany.employeeLimit < 999990) {
       if (employees.length >= selectedCompany.employeeLimit) {
         alert(`Plan employee limit reached! Your current plan allows maximum ${selectedCompany.employeeLimit} employees (${employees.length}/${selectedCompany.employeeLimit} active). You cannot add more than ${selectedCompany.employeeLimit} employees on this plan. Please upgrade your plan.`);
@@ -207,6 +247,13 @@ export default function EmployeeRegistry() {
     setModalOpen(true);
   };
 
+  const isWithoutPhoto = 
+    (selectedCompany as any)?.attendanceMode === "without_photo" ||
+    (selectedCompany?.subscription || "").toLowerCase().includes("without") ||
+    (selectedCompany?.subscription || "").toLowerCase().includes("plan a") ||
+    (selectedCompany?.subscription || "").toLowerCase().includes("plan-a") ||
+    (typeof window !== "undefined" && localStorage.getItem("attendanceMode") === "without_photo");
+
   const validateEmployeeForm = () => {
     const errors: Record<string, string> = {};
     const employeeId = formEmployeeId.trim();
@@ -230,8 +277,8 @@ export default function EmployeeRegistry() {
     if (role.length < 2) {
       errors.role = "Designation / role is required.";
     }
-    // Enforce face image upload for new registrations
-    if (!editEmployee && !formImageBase64) {
+    // Enforce face image upload ONLY when NOT in without_photo mode
+    if (!isWithoutPhoto && !editEmployee && !formImageBase64) {
       errors.registeredFaceImage = "An employee face photo is required for registration.";
     }
     if (branches.length > 0 && selectedBranches.length === 0) {
@@ -368,6 +415,53 @@ export default function EmployeeRegistry() {
           </div>
         </div>
 
+        {/* Office Location Mandatory Notice */}
+        {!isLocationConfigured && (
+          <div style={{
+            marginBottom: "20px",
+            padding: "16px 20px",
+            borderRadius: "12px",
+            background: "linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.05))",
+            border: "1px solid rgba(239, 68, 68, 0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "16px",
+            boxShadow: "0 4px 20px rgba(239, 68, 68, 0.15)"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+              <div style={{
+                width: "40px",
+                height: "40px",
+                borderRadius: "10px",
+                background: "rgba(239, 68, 68, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#f87171",
+                flexShrink: 0
+              }}>
+                <MapPin size={22} />
+              </div>
+              <div>
+                <h4 style={{ margin: "0 0 4px 0", color: "#fca5a5", fontSize: "0.95rem", fontWeight: 700 }}>
+                  Action Required: Office Location Setup
+                </h4>
+                <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+                  Please configure and save your office location on the Dashboard before registering employees. Setting office location is mandatory for attendance geofencing.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/admin"
+              className="btn btn-primary"
+              style={{ whiteSpace: "nowrap", flexShrink: 0, background: "#ef4444", borderColor: "#ef4444", textDecoration: "none" }}
+            >
+              Configure on Dashboard
+            </Link>
+          </div>
+        )}
+
         {/* Registry Card */}
         <div className={`${styles.contentCard} glass-panel`}>
           <div className={styles.cardHeader}>
@@ -497,7 +591,9 @@ export default function EmployeeRegistry() {
 
             <form onSubmit={handleSubmit} className={styles.settingsForm}>
               <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Employee ID (Unique)</label>
+                <label className={styles.formLabel}>
+                  Employee ID (Unique) <span style={{ color: "var(--color-danger, #ef4444)" }}>*</span>
+                </label>
                 <input 
                   type="text" 
                   className="form-input" 
@@ -511,7 +607,9 @@ export default function EmployeeRegistry() {
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Full Name</label>
+                <label className={styles.formLabel}>
+                  Full Name <span style={{ color: "var(--color-danger, #ef4444)" }}>*</span>
+                </label>
                 <input 
                   type="text" 
                   className="form-input" 
@@ -524,7 +622,13 @@ export default function EmployeeRegistry() {
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Employee Photo (For Face Matching)</label>
+                <label className={styles.formLabel}>
+                  {isWithoutPhoto ? (
+                    <span>Employee Photo <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: "normal" }}>(Optional - Without Photo Plan)</span></span>
+                  ) : (
+                    <span>Employee Photo (For Face Matching) <span style={{ color: "var(--color-danger, #ef4444)" }}>*</span></span>
+                  )}
+                </label>
                 <div className={styles.photoUploaderContainer}>
                   {formImagePreview ? (
                     <div className={styles.photoPreviewWrapper}>
@@ -559,7 +663,10 @@ export default function EmployeeRegistry() {
                       onChange={handlePhotoChange}
                     />
                     <span className={styles.formHint} style={{ color: "var(--text-secondary)", lineHeight: "1.4" }}>
-                      Upload a front-facing profile photo. Background is automatically whitened to pure white (#FFF) for optimal face matching.
+                      {isWithoutPhoto 
+                        ? "Photo upload is optional since your company operates in Without Photo mode."
+                        : "Upload a front-facing profile photo. Background is automatically whitened to pure white (#FFF) for optimal face matching."
+                      }
                     </span>
                     {photoProcessing && (
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--color-primary)", fontSize: "0.78rem", marginTop: "6px" }}>
@@ -577,7 +684,9 @@ export default function EmployeeRegistry() {
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.formLabel}>WhatsApp Number</label>
+                <label className={styles.formLabel}>
+                  WhatsApp Number <span style={{ color: "var(--color-danger, #ef4444)" }}>*</span>
+                </label>
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                   <span style={{ 
                     padding: "12px 14px", 
@@ -612,11 +721,14 @@ export default function EmployeeRegistry() {
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Department</label>
+                <label className={styles.formLabel}>
+                  Department <span style={{ color: "var(--color-danger, #ef4444)" }}>*</span>
+                </label>
                 <input 
                   type="text" 
                   className="form-input" 
                   placeholder="e.g. Engineering, Sales, HR"
+                  required
                   value={formDepartment}
                   onChange={(e) => setFormDepartment(e.target.value)}
                 />
@@ -624,11 +736,14 @@ export default function EmployeeRegistry() {
               </div>
 
               <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Designation / Role</label>
+                <label className={styles.formLabel}>
+                  Designation / Role <span style={{ color: "var(--color-danger, #ef4444)" }}>*</span>
+                </label>
                 <input 
                   type="text" 
                   className="form-input" 
                   placeholder="e.g. Software Engineer, Manager"
+                  required
                   value={formRole}
                   onChange={(e) => setFormRole(e.target.value)}
                 />
@@ -702,6 +817,62 @@ export default function EmployeeRegistry() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Office Location Required Modal */}
+      {showLocationRequiredModal && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: "460px", textAlign: "center", padding: "32px 24px" }}>
+            <div style={{
+              width: "60px",
+              height: "60px",
+              borderRadius: "50%",
+              background: "rgba(239, 68, 68, 0.15)",
+              color: "#ef4444",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 16px auto",
+            }}>
+              <MapPin size={30} />
+            </div>
+
+            <h3 style={{ fontSize: "1.25rem", fontWeight: 800, color: "#fff", marginBottom: "8px" }}>
+              Office Location Required
+            </h3>
+
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.92rem", lineHeight: "1.6", marginBottom: "24px" }}>
+              Please configure and save your office location on the Dashboard before registering your first employee. Setting your office location is mandatory for accurate geofenced attendance tracking.
+            </p>
+
+            <div style={{ display: "flex", gap: "12px", flexDirection: "column" }}>
+              <Link
+                href="/admin"
+                className="btn btn-primary"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  background: "#ef4444",
+                  borderColor: "#ef4444",
+                  padding: "12px",
+                  textDecoration: "none",
+                  fontWeight: 700
+                }}
+              >
+                Go to Dashboard to Set Location
+              </Link>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setShowLocationRequiredModal(false)}
+                style={{ padding: "10px" }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

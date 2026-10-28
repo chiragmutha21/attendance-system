@@ -10,10 +10,12 @@ export type { PlanConfig, PlanRequestItem };
 const PRIMARY_DATA_DIR = path.join(process.cwd(), "data");
 const STORAGE_FILE = path.join(PRIMARY_DATA_DIR, "plan-requests.json");
 const COMPANIES_CACHE_FILE = path.join(PRIMARY_DATA_DIR, "local-companies.json");
+const BRANCHES_CACHE_FILE = path.join(PRIMARY_DATA_DIR, "local-branches.json");
 
 // Backup paths
 const SCRATCH_STORAGE_FILE = path.join(process.cwd(), "scratch", "plan-requests.json");
 const SCRATCH_COMPANIES_FILE = path.join(process.cwd(), "scratch", "local-companies.json");
+const SCRATCH_BRANCHES_FILE = path.join(process.cwd(), "scratch", "local-branches.json");
 
 function ensureStorageDir() {
   if (!fs.existsSync(PRIMARY_DATA_DIR)) {
@@ -46,6 +48,18 @@ function ensureStorageDir() {
       }
     } else {
       fs.writeFileSync(COMPANIES_CACHE_FILE, JSON.stringify([]), "utf-8");
+    }
+  }
+
+  if (!fs.existsSync(BRANCHES_CACHE_FILE)) {
+    if (fs.existsSync(SCRATCH_BRANCHES_FILE)) {
+      try {
+        fs.copyFileSync(SCRATCH_BRANCHES_FILE, BRANCHES_CACHE_FILE);
+      } catch {
+        fs.writeFileSync(BRANCHES_CACHE_FILE, JSON.stringify([]), "utf-8");
+      }
+    } else {
+      fs.writeFileSync(BRANCHES_CACHE_FILE, JSON.stringify([]), "utf-8");
     }
   }
 }
@@ -212,6 +226,61 @@ export function saveLocalCompanies(companies: any[]) {
   } catch (err) {
     console.error("Error saving local companies:", err);
   }
+}
+
+export function getLocalBranches(companyId?: string): any[] {
+  try {
+    ensureStorageDir();
+    let data = "[]";
+    if (fs.existsSync(BRANCHES_CACHE_FILE)) {
+      data = fs.readFileSync(BRANCHES_CACHE_FILE, "utf-8");
+    } else if (fs.existsSync(SCRATCH_BRANCHES_FILE)) {
+      data = fs.readFileSync(SCRATCH_BRANCHES_FILE, "utf-8");
+    }
+    const parsed = JSON.parse(data);
+    if (!Array.isArray(parsed)) return [];
+    if (companyId) {
+      return parsed.filter((b: any) => b.companyId === companyId);
+    }
+    return parsed;
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalBranches(branches: any[]) {
+  try {
+    ensureStorageDir();
+    const jsonStr = JSON.stringify(branches, null, 2);
+    fs.writeFileSync(BRANCHES_CACHE_FILE, jsonStr, "utf-8");
+    try {
+      fs.writeFileSync(SCRATCH_BRANCHES_FILE, jsonStr, "utf-8");
+    } catch {}
+  } catch (err) {
+    console.error("Error saving local branches:", err);
+  }
+}
+
+export function upsertLocalBranch(branch: any): any {
+  const allBranches = getLocalBranches();
+  const index = allBranches.findIndex((b) => b.id === branch.id);
+  if (index >= 0) {
+    allBranches[index] = { ...allBranches[index], ...branch, updatedAt: new Date().toISOString() };
+  } else {
+    allBranches.push({
+      ...branch,
+      createdAt: branch.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  saveLocalBranches(allBranches);
+  return branch;
+}
+
+export function deleteLocalBranch(branchId: string) {
+  const allBranches = getLocalBranches();
+  const filtered = allBranches.filter((b) => b.id !== branchId);
+  saveLocalBranches(filtered);
 }
 
 export async function createPlanRequest(params: {

@@ -52,35 +52,60 @@ export async function POST(request: Request) {
 
     // 4. Fetch assigned branches and calculate nearest branch distance
     const assignedBranchIds = employee.assignedBranchIds || [];
-    let targetBranches = await db.branch.findMany({
-      where: {
-        id: { in: assignedBranchIds },
-        companyId: link.companyId,
-      },
-    });
+    const isCompanyUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(link.companyId);
 
-    // Fallback if no branches are assigned
-    if (targetBranches.length === 0) {
-      targetBranches = await db.branch.findMany({
-        where: { companyId: link.companyId },
-      });
-      if (targetBranches.length === 0) {
-        const company = await db.company.findUnique({ where: { id: link.companyId } });
-        if (company) {
-          const mainOffice = await db.branch.create({
-            data: {
+    let targetBranches: any[] = [];
+    if (isCompanyUuid) {
+      try {
+        if (assignedBranchIds.length > 0) {
+          targetBranches = await db.branch.findMany({
+            where: {
+              id: { in: assignedBranchIds },
               companyId: link.companyId,
-              name: "Head Office",
-              address: "Main Office Address",
-              latitude: company.officeLatitude ?? 28.6139,
-              longitude: company.officeLongitude ?? 77.2090,
-              radiusMeters: company.officeRadiusMeters ?? 200,
-              isMainOffice: true,
             },
           });
-          targetBranches = [mainOffice];
+        } else {
+          targetBranches = await db.branch.findMany({
+            where: { companyId: link.companyId },
+          });
         }
+      } catch (err) {
+        console.warn("DB branch lookup error in submit route:", err);
       }
+    }
+
+    // Include local branches
+    try {
+      const { getLocalBranches } = await import("@/lib/planRequests");
+      const localBranches = getLocalBranches(link.companyId);
+      if (assignedBranchIds.length > 0) {
+        const assignedLocal = localBranches.filter((b: any) => assignedBranchIds.includes(b.id));
+        targetBranches = [...targetBranches, ...assignedLocal];
+      } else {
+        targetBranches = [...targetBranches, ...localBranches];
+      }
+    } catch {}
+
+    // Deduplicate branches
+    const branchMap = new Map<string, any>();
+    for (const b of targetBranches) {
+      branchMap.set(b.id, b);
+    }
+    targetBranches = Array.from(branchMap.values());
+
+    // Fallback if no branches are found
+    if (targetBranches.length === 0) {
+      const officeConfig = await getOfficeConfig(link.companyId);
+      targetBranches = [
+        {
+          id: "default-office",
+          name: "Main Office",
+          latitude: officeConfig.latitude,
+          longitude: officeConfig.longitude,
+          radiusMeters: officeConfig.radius,
+          isMainOffice: true,
+        },
+      ];
     }
 
     let nearestBranch = null;

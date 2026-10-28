@@ -24,24 +24,28 @@ export default function BranchesPage() {
   const [locatingBranch, setLocatingBranch] = useState(false);
   const [error, setError] = useState("");
 
-  const selectedCompanyHeaders: { [key: string]: string } = selectedCompanyId
-    ? { "x-company-id": selectedCompanyId }
-    : {};
+  const getHeaders = (compId?: string): Record<string, string> => {
+    const activeId = compId || selectedCompanyId;
+    const h: Record<string, string> = { "Content-Type": "application/json" };
+    if (activeId) h["x-company-id"] = activeId;
+    if (typeof window !== "undefined") {
+      const email = localStorage.getItem("adminEmail");
+      if (email) h["x-admin-email"] = email;
+    }
+    return h;
+  };
 
   useEffect(() => {
-    setSelectedCompanyId(localStorage.getItem("selectedCompanyId") || "");
+    const stored = localStorage.getItem("selectedCompanyId") || "";
+    setSelectedCompanyId(stored);
+    fetchBranches(stored);
   }, []);
 
-  useEffect(() => {
-    if (selectedCompanyId) {
-      fetchBranches();
-    }
-  }, [selectedCompanyId]);
-
-  const fetchBranches = async () => {
+  const fetchBranches = async (compId?: string) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/branches", { headers: selectedCompanyHeaders });
+      const headers = getHeaders(compId);
+      const res = await fetch("/api/admin/branches", { headers });
       const data = await res.json();
       if (data.success && data.branches) {
         setBranches(data.branches);
@@ -105,10 +109,22 @@ export default function BranchesPage() {
     setBranchSaving(true);
     setError("");
     try {
+      if (!branchName.trim()) {
+        setError("Branch Name is required.");
+        setBranchSaving(false);
+        return;
+      }
+      if (!branchLat || !branchLng) {
+        setError("Latitude and Longitude are required. Click 'Use Current Location' or enter manually.");
+        setBranchSaving(false);
+        return;
+      }
+
       const payload = {
         id: editingBranch?.id,
-        name: branchName,
-        address: branchAddress,
+        companyId: selectedCompanyId,
+        name: branchName.trim(),
+        address: branchAddress.trim(),
         latitude: parseFloat(branchLat) || 0,
         longitude: parseFloat(branchLng) || 0,
         radiusMeters: parseInt(branchRadius) || 200,
@@ -117,20 +133,20 @@ export default function BranchesPage() {
 
       const res = await fetch("/api/admin/branches", {
         method: editingBranch ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json", ...selectedCompanyHeaders },
+        headers: getHeaders(selectedCompanyId),
         body: JSON.stringify(payload),
       });
 
       const data = await res.json();
       if (data.success) {
         setBranchModalOpen(false);
-        fetchBranches();
+        fetchBranches(selectedCompanyId);
       } else {
-        setError(data.error || "Failed to save branch");
+        setError(data.error || data.details || "Failed to save branch");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("An unexpected error occurred.");
+      setError(err?.message || "An unexpected error occurred.");
     } finally {
       setBranchSaving(false);
     }
@@ -141,11 +157,11 @@ export default function BranchesPage() {
     try {
       const res = await fetch(`/api/admin/branches?id=${id}`, {
         method: "DELETE",
-        headers: selectedCompanyHeaders,
+        headers: getHeaders(selectedCompanyId),
       });
       const data = await res.json();
       if (data.success) {
-        fetchBranches();
+        fetchBranches(selectedCompanyId);
       } else {
         alert(data.error || "Failed to delete branch");
       }
@@ -158,7 +174,13 @@ export default function BranchesPage() {
   return (
     <AuthGate>
       <div className={styles.adminLayout}>
-        <Sidebar activeKey="branches" onCompanyChange={(id) => setSelectedCompanyId(id)} />
+        <Sidebar
+          activeKey="branches"
+          onCompanyChange={(id) => {
+            setSelectedCompanyId(id);
+            fetchBranches(id);
+          }}
+        />
 
         <main className={styles.mainContainer}>
           <header className={styles.header}>
@@ -228,8 +250,8 @@ export default function BranchesPage() {
 
                       <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "0.8rem", color: "var(--text-muted)" }}>
                         <div style={{ display: "flex", gap: "10px" }}>
-                          <span><strong>Latitude:</strong> {b.latitude.toFixed(6)}</span>
-                          <span><strong>Longitude:</strong> {b.longitude.toFixed(6)}</span>
+                          <span><strong>Latitude:</strong> {Number(b.latitude || 0).toFixed(6)}</span>
+                          <span><strong>Longitude:</strong> {Number(b.longitude || 0).toFixed(6)}</span>
                         </div>
                         <div>
                           <span><strong>Allowed Radius:</strong> {b.radiusMeters} meters</span>

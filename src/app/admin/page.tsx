@@ -6,7 +6,7 @@ import QRCode from "qrcode";
 import { 
   Users, MapPin, CheckCircle, XCircle, AlertTriangle, ShieldAlert,
   Settings, Image, Search, Filter, Download, ExternalLink, Menu, Sparkles, CalendarDays, X, Plus, Loader2, Activity,
-  QrCode, Copy, Check
+  QrCode, Copy, Check, Building2
 } from "lucide-react";
 import AuthGate from "@/components/AuthGate";
 import Sidebar from "@/components/Sidebar";
@@ -87,6 +87,7 @@ export default function AdminDashboard() {
     longitude: 77.2090,
     radius: 200,
   });
+  const [locationSaved, setLocationSaved] = useState<boolean>(true);
   const [configSaving, setConfigSaving] = useState(false);
   const [locating, setLocating] = useState(false);
 
@@ -95,6 +96,7 @@ export default function AdminDashboard() {
 
   // Branches Config State
   const [branches, setBranches] = useState<any[]>([]);
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>("all");
 
   // Map instance reference
   const mapRef = useRef<any>(null);
@@ -202,8 +204,22 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    setSelectedCompanyId(localStorage.getItem("selectedCompanyId") || "");
+    const compId = localStorage.getItem("selectedCompanyId") || "";
+    setSelectedCompanyId(compId);
     
+    if (compId) {
+      const storedConf = localStorage.getItem("officeConfig_" + compId);
+      if (storedConf) {
+        try {
+          setOfficeConfig(JSON.parse(storedConf));
+        } catch {}
+      }
+      const isConfigured = localStorage.getItem("locationConfigured_" + compId);
+      if (isConfigured === "true") {
+        setLocationSaved(true);
+      }
+    }
+
     // Default start and end dates to today's local date
     const getTodayString = () => {
       const d = new Date();
@@ -225,7 +241,7 @@ export default function AdminDashboard() {
     fetchEmployeesCount();
     fetchBranches();
     checkCompanyLogo(selectedCompanyId);
-  }, [mounted, selectedCompanyId, search, statusFilter, startDate, endDate]);
+  }, [mounted, selectedCompanyId, search, statusFilter, startDate, endDate, selectedBranchFilter]);
 
   // Load Map when Leaflet scripts are injected and ready
   useEffect(() => {
@@ -268,7 +284,8 @@ export default function AdminDashboard() {
         status: statusFilter,
         startDate,
         endDate,
-        type: "check-in"
+        type: "check-in",
+        ...(selectedBranchFilter !== "all" ? { branchId: selectedBranchFilter } : {}),
       });
       const res = await fetch(`/api/admin/records?${query.toString()}`, { headers: selectedCompanyHeaders });
       const data = await res.json();
@@ -288,6 +305,15 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (data.success && data.officeConfig) {
         setOfficeConfig(data.officeConfig);
+        const isSaved = Boolean(data.officeConfig.locationSaved);
+        setLocationSaved(isSaved);
+
+        if (typeof window !== "undefined" && selectedCompanyId) {
+          localStorage.setItem("officeConfig_" + selectedCompanyId, JSON.stringify(data.officeConfig));
+          if (isSaved) {
+            localStorage.setItem("locationConfigured_" + selectedCompanyId, "true");
+          }
+        }
       }
     } catch (err) {
       console.error(err);
@@ -305,8 +331,6 @@ export default function AdminDashboard() {
       console.error(err);
     }
   };
-
-
 
   const fetchEmployeesCount = async () => {
     try {
@@ -331,8 +355,15 @@ export default function AdminDashboard() {
       });
       const data = await res.json();
       if (data.success) {
+        setLocationSaved(true);
+        if (typeof window !== "undefined" && selectedCompanyId) {
+          localStorage.setItem("officeConfig_" + selectedCompanyId, JSON.stringify(officeConfig));
+          localStorage.setItem("locationConfigured_" + selectedCompanyId, "true");
+        }
         alert("Office Geofence configuration updated successfully.");
         fetchBranches();
+      } else {
+        alert(data.error || "Failed to save office configuration.");
       }
     } catch (err) {
       console.error(err);
@@ -573,6 +604,57 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Action Required Banner: Unconfigured Office Location */}
+        {!locationSaved && (
+          <div style={{
+            background: "linear-gradient(135deg, rgba(239, 68, 68, 0.14), rgba(245, 158, 11, 0.08))",
+            border: "1.5px solid rgba(239, 68, 68, 0.45)",
+            borderRadius: "14px",
+            padding: "16px 20px",
+            marginBottom: "24px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "14px",
+            boxShadow: "0 6px 24px rgba(239, 68, 68, 0.15)"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+              <div style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "12px",
+                background: "rgba(239, 68, 68, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--color-danger, #ef4444)",
+                flexShrink: 0
+              }}>
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 style={{ color: "#fff", fontSize: "1.05rem", fontWeight: 700, margin: 0, marginBottom: "4px" }}>
+                  Action Required: Configure Office Geofence Location
+                </h3>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: "1.5" }}>
+                  Your company office location has not been saved yet. Please pinpoint your office on the map below and click <strong>"Save Settings"</strong>. Setting your office location is mandatory before you can register employees.
+                </p>
+              </div>
+            </div>
+            <button 
+              type="button" 
+              className="btn btn-primary"
+              onClick={() => {
+                document.getElementById("admin-map")?.scrollIntoView({ behavior: "smooth" });
+              }}
+              style={{ padding: "9px 20px", fontSize: "0.85rem", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "8px" }}
+            >
+              <MapPin size={16} /> Pin Office Location
+            </button>
+          </div>
+        )}
+
         {/* Stats Grid */}
         <section className={styles.statsGrid}>
           <div className={`${styles.statCard} glass-panel`}>
@@ -597,6 +679,77 @@ export default function AdminDashboard() {
             <div className={styles.statValue} style={{ color: "var(--color-danger)" }}>{todayOutside}</div>
           </div>
         </section>
+
+        {/* Dashboard Grid (Map & Config Settings) */}
+        <div className={styles.dashboardGrid}>
+          {/* Map Column */}
+          <div className={`${styles.contentCard} glass-panel`}>
+            <div className={styles.cardHeader}>
+              <h2 className={styles.cardTitle}>Live Attendance Map</h2>
+              <MapPin size={16} color="var(--color-secondary)" />
+            </div>
+            <div id="admin-map" className={styles.leafletContainer} style={{ minHeight: "300px" }}></div>
+            <p style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginTop: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+              💡 <span><strong>Tip:</strong> Click anywhere on the map or drag the blue pin to pinpoint your exact office building.</span>
+            </p>
+          </div>
+
+          {/* Config Settings Column */}
+          <div className={`${styles.contentCard} glass-panel`}>
+            <div className={styles.cardHeader}>
+              <h2 className={styles.cardTitle}>Geofence Settings</h2>
+              <Settings size={16} color="var(--text-secondary)" />
+            </div>
+            <form onSubmit={saveOfficeConfig} className={styles.settingsForm}>
+              <div className={styles.formGridTwo}>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Office Latitude</label>
+                  <input 
+                    type="number" 
+                    step="0.000001"
+                    className="form-input" 
+                    value={officeConfig.latitude} 
+                    onChange={(e) => setOfficeConfig({...officeConfig, latitude: parseFloat(e.target.value) || 0})}
+                  />
+                </div>
+                <div className={styles.formGroup}>
+                  <label className={styles.formLabel}>Office Longitude</label>
+                  <input 
+                    type="number" 
+                    step="0.000001"
+                    className="form-input" 
+                    value={officeConfig.longitude} 
+                    onChange={(e) => setOfficeConfig({...officeConfig, longitude: parseFloat(e.target.value) || 0})}
+                  />
+                </div>
+              </div>
+              
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                disabled={locating}
+                className="btn btn-outline"
+                style={{ width: "100%", padding: "10px" }}
+              >
+                <MapPin size={16} />
+                {locating ? "Fetching Location..." : "Use My Current Location"}
+              </button>
+
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Allowed Radius (Meters)</label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  value={officeConfig.radius} 
+                  onChange={(e) => setOfficeConfig({...officeConfig, radius: parseInt(e.target.value) || 0})}
+                />
+              </div>
+              <button type="submit" disabled={configSaving} className="btn btn-secondary" style={{ marginTop: "8px" }}>
+                Save Settings
+              </button>
+            </form>
+          </div>
+        </div>
 
         {/* Company QR Terminals (IN & OUT) */}
         <div className={`${styles.contentCard} glass-panel`} style={{ marginBottom: "24px" }}>
@@ -749,87 +902,105 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Dashboard Grid (Map & Config Settings) */}
-        <div className={styles.dashboardGrid}>
-          {/* Map Column */}
-          <div className={`${styles.contentCard} glass-panel`}>
-            <div className={styles.cardHeader}>
-              <h2 className={styles.cardTitle}>Live Attendance Map</h2>
-              <MapPin size={16} color="var(--color-secondary)" />
-            </div>
-            <div id="admin-map" className={styles.leafletContainer} style={{ minHeight: "300px" }}></div>
-            <p style={{ fontSize: "0.78rem", color: "var(--text-secondary)", marginTop: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-              💡 <span><strong>Tip:</strong> Click anywhere on the map or drag the blue pin to pinpoint your exact office building.</span>
-            </p>
-          </div>
-
-          {/* Config Settings Column */}
-          <div className={`${styles.contentCard} glass-panel`}>
-            <div className={styles.cardHeader}>
-              <h2 className={styles.cardTitle}>Geofence Settings</h2>
-              <Settings size={16} color="var(--text-secondary)" />
-            </div>
-            <form onSubmit={saveOfficeConfig} className={styles.settingsForm}>
-              <div className={styles.formGridTwo}>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>Office Latitude</label>
-                  <input 
-                    type="number" 
-                    step="0.000001"
-                    className="form-input" 
-                    value={officeConfig.latitude} 
-                    onChange={(e) => setOfficeConfig({...officeConfig, latitude: parseFloat(e.target.value) || 0})}
-                  />
-                </div>
-                <div className={styles.formGroup}>
-                  <label className={styles.formLabel}>Office Longitude</label>
-                  <input 
-                    type="number" 
-                    step="0.000001"
-                    className="form-input" 
-                    value={officeConfig.longitude} 
-                    onChange={(e) => setOfficeConfig({...officeConfig, longitude: parseFloat(e.target.value) || 0})}
-                  />
-                </div>
-              </div>
-              
-              <button
-                type="button"
-                onClick={handleUseCurrentLocation}
-                disabled={locating}
-                className="btn btn-outline"
-                style={{ width: "100%", padding: "10px" }}
-              >
-                <MapPin size={16} />
-                {locating ? "Fetching Location..." : "Use My Current Location"}
-              </button>
-
-              <div className={styles.formGroup}>
-                <label className={styles.formLabel}>Allowed Radius (Meters)</label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  value={officeConfig.radius} 
-                  onChange={(e) => setOfficeConfig({...officeConfig, radius: parseInt(e.target.value) || 0})}
-                />
-              </div>
-              <button type="submit" disabled={configSaving} className="btn btn-secondary" style={{ marginTop: "8px" }}>
-                Save Settings
-              </button>
-            </form>
-          </div>
-
-
-        </div>
-
         {/* Records Table Card */}
         <div className={`${styles.contentCard} glass-panel`}>
           <div className={styles.cardHeader}>
-            <h2 className={styles.cardTitle}>Check-In Logs</h2>
+            <div>
+              <h2 className={styles.cardTitle}>Check-In Logs</h2>
+              {selectedBranchFilter !== "all" && (
+                <span style={{ fontSize: "0.78rem", color: "var(--color-primary-light, #c4b5fd)", fontWeight: 600 }}>
+                  Filtered by: {branches.find(b => b.id === selectedBranchFilter)?.name || selectedBranchFilter}
+                </span>
+              )}
+            </div>
             <div style={{ display: "flex", gap: "8px" }}>
               <Search size={16} color="var(--text-muted)" />
             </div>
           </div>
+
+          {/* Branch Filter Pills */}
+          {branches.length > 0 && (
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 14px",
+              marginBottom: "16px",
+              background: "rgba(255, 255, 255, 0.03)",
+              borderRadius: "12px",
+              border: "1px solid var(--border-light)",
+              flexWrap: "wrap"
+            }}>
+              <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "6px", marginRight: "4px" }}>
+                <Building2 size={15} color="var(--color-primary)" />
+                Branch:
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setSelectedBranchFilter("all")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "5px 12px",
+                  borderRadius: "8px",
+                  fontSize: "0.82rem",
+                  fontWeight: selectedBranchFilter === "all" ? 700 : 500,
+                  border: selectedBranchFilter === "all" ? "1px solid var(--color-primary)" : "1px solid var(--border-light)",
+                  background: selectedBranchFilter === "all" ? "linear-gradient(135deg, rgba(124, 58, 237, 0.25), rgba(79, 70, 229, 0.2))" : "rgba(255, 255, 255, 0.03)",
+                  color: selectedBranchFilter === "all" ? "#fff" : "var(--text-secondary)",
+                  cursor: "pointer",
+                  transition: "all 0.2s"
+                }}
+              >
+                <span>All Branches</span>
+                <span style={{
+                  fontSize: "0.7rem",
+                  padding: "1px 6px",
+                  borderRadius: "10px",
+                  background: selectedBranchFilter === "all" ? "var(--color-primary)" : "rgba(255, 255, 255, 0.08)",
+                  color: "#fff",
+                  fontWeight: 600
+                }}>
+                  {records.length}
+                </span>
+              </button>
+
+              {branches.map((b) => {
+                const isSelected = selectedBranchFilter === b.id;
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setSelectedBranchFilter(b.id)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "5px 12px",
+                      borderRadius: "8px",
+                      fontSize: "0.82rem",
+                      fontWeight: isSelected ? 700 : 500,
+                      border: isSelected ? "1px solid var(--color-primary)" : "1px solid var(--border-light)",
+                      background: isSelected ? "linear-gradient(135deg, rgba(124, 58, 237, 0.25), rgba(79, 70, 229, 0.2))" : "rgba(255, 255, 255, 0.03)",
+                      color: isSelected ? "#fff" : "var(--text-secondary)",
+                      cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    <MapPin size={13} color={isSelected ? "var(--color-primary-light, #c4b5fd)" : "var(--text-muted)"} />
+                    <span>{b.name}</span>
+                    {b.isMainOffice && (
+                      <span style={{ fontSize: "0.68rem", opacity: 0.7 }}>
+                        (Main)
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Table Search & Filter Bar */}
           <div className={styles.logsFilterBar}>
@@ -840,6 +1011,16 @@ export default function AdminDashboard() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            <select 
+              className={styles.filterSelect}
+              value={selectedBranchFilter}
+              onChange={(e) => setSelectedBranchFilter(e.target.value)}
+            >
+              <option value="all">All Branches</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>{b.name} {b.isMainOffice ? "(Main)" : ""}</option>
+              ))}
+            </select>
             <select 
               className={styles.filterSelect}
               value={statusFilter}
@@ -978,10 +1159,40 @@ export default function AdminDashboard() {
                         {rec.workHours || "-"}
                       </td>
                       <td>
-                        {rec.checkInBranchName || (rec.branchName && rec.type === 'check-in' ? rec.branchName : "-")}
+                        <span style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "3px 8px",
+                          borderRadius: "6px",
+                          background: "rgba(16, 185, 129, 0.12)",
+                          color: "#10b981",
+                          fontSize: "0.82rem",
+                          fontWeight: 600
+                        }}>
+                          <MapPin size={12} />
+                          {rec.checkInBranchName || (rec.branchName && rec.type === 'check-in' ? rec.branchName : "Main Office")}
+                        </span>
                       </td>
                       <td>
-                        {rec.checkOutBranchName || (rec.branchName && rec.type === 'check-out' ? rec.branchName : "-")}
+                        {rec.checkOutBranchName || (rec.branchName && rec.type === 'check-out' ? rec.branchName : (rec.checkoutTime ? "Main Office" : null)) ? (
+                          <span style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "3px 8px",
+                            borderRadius: "6px",
+                            background: "rgba(239, 68, 68, 0.12)",
+                            color: "#ef4444",
+                            fontSize: "0.82rem",
+                            fontWeight: 600
+                          }}>
+                            <MapPin size={12} />
+                            {rec.checkOutBranchName || (rec.branchName && rec.type === 'check-out' ? rec.branchName : (rec.checkoutTime ? "Main Office" : "-"))}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--text-secondary)" }}>-</span>
+                        )}
                       </td>
                       <td>
                         {Math.round(rec.distanceFromOffice)}m

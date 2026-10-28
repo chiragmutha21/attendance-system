@@ -9,7 +9,7 @@ import { getCompanyFolderName, uploadSelfieImage } from "@/lib/storage";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { employeeId, companyId, selfie, latitude, longitude, accuracy, timezone, deviceInfo, type } = body;
+    const { employeeId, companyId, branchId, selfie, latitude, longitude, accuracy, timezone, deviceInfo, type } = body;
 
     // 1. Basic validation
     if (!employeeId || !companyId || latitude === undefined || longitude === undefined || !type) {
@@ -31,45 +31,83 @@ export async function POST(request: Request) {
 
     // 3. Fetch assigned branches and calculate nearest branch distance
     const assignedBranchIds = employee.assignedBranchIds || [];
-    let targetBranches = await db.branch.findMany({
-      where: {
-        id: { in: assignedBranchIds },
-        companyId: companyId,
-      },
-    });
+    const isCompanyUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(companyId);
 
-    // Fallback if no branches are assigned
-    if (targetBranches.length === 0) {
-      targetBranches = await db.branch.findMany({
-        where: { companyId: companyId },
-      });
-      if (targetBranches.length === 0) {
-        const company = await db.company.findUnique({ where: { id: companyId } });
-        if (company) {
-          const mainOffice = await db.branch.create({
-            data: {
+    let targetBranches: any[] = [];
+    if (isCompanyUuid) {
+      try {
+        if (assignedBranchIds.length > 0) {
+          targetBranches = await db.branch.findMany({
+            where: {
+              id: { in: assignedBranchIds },
               companyId: companyId,
-              name: "Head Office",
-              address: "Main Office Address",
-              latitude: company.officeLatitude ?? 28.6139,
-              longitude: company.officeLongitude ?? 77.2090,
-              radiusMeters: company.officeRadiusMeters ?? 200,
-              isMainOffice: true,
             },
           });
-          targetBranches = [mainOffice];
+        } else {
+          targetBranches = await db.branch.findMany({
+            where: { companyId: companyId },
+          });
         }
+      } catch (err) {
+        console.warn("DB branch lookup error in fixed submit:", err);
       }
     }
 
-    let nearestBranch = null;
-    let minDistance = Infinity;
+    // Include local branches
+    try {
+      const { getLocalBranches } = await import("@/lib/planRequests");
+      const localBranches = getLocalBranches(companyId);
+      if (assignedBranchIds.length > 0) {
+        const assignedLocal = localBranches.filter((b: any) => assignedBranchIds.includes(b.id));
+        targetBranches = [...targetBranches, ...assignedLocal];
+      } else {
+        targetBranches = [...targetBranches, ...localBranches];
+      }
+    } catch {}
 
+    // Deduplicate branches
+    const branchMap = new Map<string, any>();
     for (const b of targetBranches) {
-      const dist = calculateDistance(latitude, longitude, b.latitude, b.longitude);
-      if (dist < minDistance) {
-        minDistance = dist;
-        nearestBranch = b;
+      branchMap.set(b.id, b);
+    }
+    targetBranches = Array.from(branchMap.values());
+
+    // Fallback if still no branches found
+    if (targetBranches.length === 0) {
+      const officeConfig = await getOfficeConfig(companyId);
+      targetBranches = [
+        {
+          id: "default-office",
+          name: "Main Office",
+          latitude: officeConfig.latitude,
+          longitude: officeConfig.longitude,
+          radiusMeters: officeConfig.radius,
+          isMainOffice: true,
+        },
+      ];
+    }
+
+    // If a specific branchId was passed by the QR code, check if it matches a valid branch
+    const isBranchUuid = branchId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(branchId);
+    let matchedBranch = targetBranches.find((b) => b.id === branchId) || null;
+    if (!matchedBranch && isBranchUuid && isCompanyUuid) {
+      try {
+        matchedBranch = await db.branch.findFirst({
+          where: { id: branchId, companyId: companyId },
+        });
+      } catch {}
+    }
+
+    let nearestBranch = matchedBranch;
+    let minDistance = matchedBranch ? calculateDistance(latitude, longitude, matchedBranch.latitude, matchedBranch.longitude) : Infinity;
+
+    if (!matchedBranch) {
+      for (const b of targetBranches) {
+        const dist = calculateDistance(latitude, longitude, b.latitude, b.longitude);
+        if (dist < minDistance) {
+          minDistance = dist;
+          nearestBranch = b;
+        }
       }
     }
 

@@ -13,10 +13,17 @@ import {
   Search,
   Sparkles,
   Users,
+  Building2,
 } from "lucide-react";
 import AuthGate from "@/components/AuthGate";
 import Sidebar from "@/components/Sidebar";
 import styles from "../admin.module.css";
+
+interface Branch {
+  id: string;
+  name: string;
+  isMainOffice?: boolean;
+}
 
 interface Employee {
   id: string;
@@ -111,6 +118,8 @@ const getPeriodRange = (period: Period) => {
 
 export default function CheckAttendancePage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loadingEmployees, setLoadingEmployees] = useState(true);
   const [loadingRecords, setLoadingRecords] = useState(true);
@@ -148,6 +157,18 @@ export default function CheckAttendancePage() {
     }
   };
 
+  const fetchBranches = async () => {
+    try {
+      const res = await fetch("/api/admin/branches", { headers: selectedCompanyHeaders });
+      const data = await res.json();
+      if (data.success && data.branches) {
+        setBranches(data.branches);
+      }
+    } catch (err) {
+      console.error("Error fetching branches:", err);
+    }
+  };
+
   const fetchRecords = async () => {
     try {
       setLoadingRecords(true);
@@ -157,6 +178,7 @@ export default function CheckAttendancePage() {
         search,
         startDate: selectedRange.startDate,
         endDate: selectedRange.endDate,
+        ...(selectedBranchId !== "all" ? { branchId: selectedBranchId } : {}),
       });
       const res = await fetch(`/api/admin/records?${query.toString()}`, { headers: selectedCompanyHeaders });
       const data = await res.json();
@@ -177,6 +199,7 @@ export default function CheckAttendancePage() {
   useEffect(() => {
     if (selectedCompanyId) {
       fetchEmployees();
+      fetchBranches();
     }
   }, [selectedCompanyId]);
 
@@ -184,7 +207,7 @@ export default function CheckAttendancePage() {
     if (selectedCompanyId) {
       fetchRecords();
     }
-  }, [selectedCompanyId, selectedEmployeeId, selectedRange.startDate, selectedRange.endDate, search]);
+  }, [selectedCompanyId, selectedEmployeeId, selectedRange.startDate, selectedRange.endDate, search, selectedBranchId]);
 
   const presentCount = records.filter((record) => record.status === "present").length;
   const outsideCount = records.filter((record) => record.status === "outside_radius").length;
@@ -195,13 +218,15 @@ export default function CheckAttendancePage() {
   const exportToCSV = () => {
     if (records.length === 0) return;
 
-    const headers = ["Employee ID", "Employee Name", "Check-In Time", "Checkout Time", "Work Hours", "Distance (m)", "Status", "Latitude", "Longitude", "Festival", "Device"];
+    const headers = ["Employee ID", "Employee Name", "Check-In Time", "Checkout Time", "Work Hours", "Check-In Branch", "Check-Out Branch", "Distance (m)", "Status", "Latitude", "Longitude", "Festival", "Device"];
     const rows = records.map((record) => [
       record.employeeId,
       record.employeeName,
       record.checkInTime ? formatDateTimeToDDMMYYYY(record.checkInTime) : "-",
       record.checkoutTime ? formatDateTimeToDDMMYYYY(record.checkoutTime) : "-",
       record.workHours || "-",
+      record.checkInBranchName || (record.branchName && record.type === 'check-in' ? record.branchName : "Main Office"),
+      record.checkOutBranchName || (record.branchName && record.type === 'check-out' ? record.branchName : (record.checkoutTime ? "Main Office" : "-")),
       Math.round(record.distanceFromOffice),
       record.status,
       record.latitude || "-",
@@ -274,73 +299,210 @@ export default function CheckAttendancePage() {
           </div>
         </section>
 
-        <div className={`${styles.contentCard} glass-panel`}>
-          <div className={styles.cardHeader}>
-            <div>
-              <h2 className={styles.cardTitle}>Attendance Filters</h2>
-              <p className={styles.cardMeta}>
-                {formatDateToDDMMYYYY(selectedRange.startDate)} to {formatDateToDDMMYYYY(selectedRange.endDate)}
-                {selectedEmployee ? ` | ${selectedEmployee.fullName}` : " | All employees"}
-              </p>
-            </div>
-            <Search size={16} color="var(--text-muted)" />
-          </div>
-
-          <div className={styles.filterBar}>
-            <select
-              className={styles.filterSelect}
-              value={period}
-              onChange={(event) => setPeriod(event.target.value as Period)}
-            >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="custom">Custom Range</option>
-            </select>
-
-            {period === "custom" && (
-              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <input
-                  type="date"
-                  className={styles.filterSelect}
-                  value={customStartDate}
-                  onChange={(event) => setCustomStartDate(event.target.value)}
-                  style={{ width: "auto", minWidth: "140px" }}
-                />
-                <span style={{ color: "var(--text-secondary)" }}>to</span>
-                <input
-                  type="date"
-                  className={styles.filterSelect}
-                  value={customEndDate}
-                  onChange={(event) => setCustomEndDate(event.target.value)}
-                  style={{ width: "auto", minWidth: "140px" }}
-                />
+        {/* Branch Filter Sidebar + Attendance Records Container */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: branches.length > 0 ? "260px 1fr" : "1fr",
+          gap: "24px",
+          alignItems: "flex-start",
+          marginBottom: "24px"
+        }}>
+          {/* Branch Sidebar */}
+          {branches.length > 0 && (
+            <div className="glass-panel" style={{
+              padding: "20px",
+              borderRadius: "16px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+              position: "sticky",
+              top: "20px"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "#fff", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Building2 size={18} color="var(--color-primary)" />
+                  Branch Filter
+                </span>
+                <Link
+                  href="/admin/branches"
+                  style={{ fontSize: "0.75rem", color: "var(--color-primary-light, #c4b5fd)", textDecoration: "none", fontWeight: 600 }}
+                >
+                  Manage
+                </Link>
               </div>
-            )}
+              <p style={{ fontSize: "0.78rem", color: "var(--text-secondary)", margin: "0 0 10px 0", lineHeight: "1.4" }}>
+                Filter attendance records by registered branch location:
+              </p>
 
-            <select
-              className={styles.filterSelect}
-              value={selectedEmployeeId}
-              onChange={(event) => setSelectedEmployeeId(event.target.value)}
-              disabled={loadingEmployees}
-            >
-              <option value="all">All Employees</option>
-              {employees.map((employee) => (
-                <option key={employee.id} value={employee.employeeId}>
-                  {employee.fullName} ({employee.employeeId})
-                </option>
-              ))}
-            </select>
+              {/* All Branches Button */}
+              <button
+                type="button"
+                onClick={() => setSelectedBranchId("all")}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  border: selectedBranchId === "all" ? "1px solid var(--color-primary)" : "1px solid var(--border-light)",
+                  background: selectedBranchId === "all" ? "linear-gradient(135deg, rgba(124, 58, 237, 0.25), rgba(79, 70, 229, 0.2))" : "rgba(255, 255, 255, 0.03)",
+                  color: selectedBranchId === "all" ? "#fff" : "var(--text-secondary)",
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  fontWeight: selectedBranchId === "all" ? 700 : 500,
+                  transition: "all 0.2s",
+                  textAlign: "left"
+                }}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Building2 size={15} color={selectedBranchId === "all" ? "var(--color-primary-light, #c4b5fd)" : "var(--text-muted)"} />
+                  All Branches
+                </span>
+                <span style={{
+                  fontSize: "0.72rem",
+                  padding: "2px 8px",
+                  borderRadius: "12px",
+                  background: selectedBranchId === "all" ? "var(--color-primary)" : "rgba(255, 255, 255, 0.08)",
+                  color: "#fff",
+                  fontWeight: 600
+                }}>
+                  {selectedBranchId === "all" ? records.length : "All"}
+                </span>
+              </button>
 
-            <input
-              type="text"
-              placeholder="Search name or employee ID..."
-              className="form-input"
-              style={{ flex: 2 }}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
+              {/* Individual Branch Buttons */}
+              {branches.map((b) => {
+                const isSelected = selectedBranchId === b.id;
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => setSelectedBranchId(b.id)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "10px 14px",
+                      borderRadius: "10px",
+                      border: isSelected ? "1px solid var(--color-primary)" : "1px solid var(--border-light)",
+                      background: isSelected ? "linear-gradient(135deg, rgba(124, 58, 237, 0.25), rgba(79, 70, 229, 0.2))" : "rgba(255, 255, 255, 0.03)",
+                      color: isSelected ? "#fff" : "var(--text-secondary)",
+                      cursor: "pointer",
+                      fontSize: "0.85rem",
+                      fontWeight: isSelected ? 700 : 500,
+                      transition: "all 0.2s",
+                      textAlign: "left"
+                    }}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <MapPin size={15} color={isSelected ? "var(--color-primary-light, #c4b5fd)" : "var(--text-muted)"} />
+                      <span>{b.name}</span>
+                      {b.isMainOffice && (
+                        <span style={{ fontSize: "0.68rem", opacity: 0.7 }}>
+                          (Main)
+                        </span>
+                      )}
+                    </span>
+                    {isSelected && (
+                      <span style={{
+                        fontSize: "0.7rem",
+                        padding: "2px 8px",
+                        borderRadius: "10px",
+                        background: "var(--color-primary)",
+                        color: "#fff",
+                        fontWeight: 600
+                      }}>
+                        Active
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Right Main Table Content Card */}
+          <div className={`${styles.contentCard} glass-panel`} style={{ margin: 0 }}>
+            <div className={styles.cardHeader}>
+              <div>
+                <h2 className={styles.cardTitle}>Attendance Filters</h2>
+                <p className={styles.cardMeta}>
+                  {formatDateToDDMMYYYY(selectedRange.startDate)} to {formatDateToDDMMYYYY(selectedRange.endDate)}
+                  {selectedEmployee ? ` | ${selectedEmployee.fullName}` : " | All employees"}
+                  {selectedBranchId !== "all" ? ` | Branch: ${branches.find(b => b.id === selectedBranchId)?.name || selectedBranchId}` : " | All branches"}
+                </p>
+              </div>
+              <Search size={16} color="var(--text-muted)" />
+            </div>
+
+            <div className={styles.filterBar}>
+              <select
+                className={styles.filterSelect}
+                value={period}
+                onChange={(event) => setPeriod(event.target.value as Period)}
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="custom">Custom Range</option>
+              </select>
+
+              {period === "custom" && (
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <input
+                    type="date"
+                    className={styles.filterSelect}
+                    value={customStartDate}
+                    onChange={(event) => setCustomStartDate(event.target.value)}
+                    style={{ width: "auto", minWidth: "140px" }}
+                  />
+                  <span style={{ color: "var(--text-secondary)" }}>to</span>
+                  <input
+                    type="date"
+                    className={styles.filterSelect}
+                    value={customEndDate}
+                    onChange={(event) => setCustomEndDate(event.target.value)}
+                    style={{ width: "auto", minWidth: "140px" }}
+                  />
+                </div>
+              )}
+
+              <select
+                className={styles.filterSelect}
+                value={selectedBranchId}
+                onChange={(event) => setSelectedBranchId(event.target.value)}
+              >
+                <option value="all">All Branches</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} {b.isMainOffice ? "(Main)" : ""}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                className={styles.filterSelect}
+                value={selectedEmployeeId}
+                onChange={(event) => setSelectedEmployeeId(event.target.value)}
+                disabled={loadingEmployees}
+              >
+                <option value="all">All Employees</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.employeeId}>
+                    {employee.fullName} ({employee.employeeId})
+                  </option>
+                ))}
+              </select>
+
+              <input
+                type="text"
+                placeholder="Search name or employee ID..."
+                className="form-input"
+                style={{ flex: 2 }}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
 
           {loadingRecords ? (
             <p style={{ textAlign: "center", color: "var(--text-secondary)", padding: "20px" }}>
@@ -417,10 +579,40 @@ export default function CheckAttendancePage() {
                         {record.workHours || "-"}
                       </td>
                       <td>
-                        {record.checkInBranchName || (record.branchName && record.type === 'check-in' ? record.branchName : "-")}
+                        <span style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "3px 8px",
+                          borderRadius: "6px",
+                          background: "rgba(16, 185, 129, 0.12)",
+                          color: "#10b981",
+                          fontSize: "0.82rem",
+                          fontWeight: 600
+                        }}>
+                          <MapPin size={12} />
+                          {record.checkInBranchName || (record.branchName && record.type === 'check-in' ? record.branchName : "Main Office")}
+                        </span>
                       </td>
                       <td>
-                        {record.checkOutBranchName || (record.branchName && record.type === 'check-out' ? record.branchName : "-")}
+                        {record.checkOutBranchName || (record.branchName && record.type === 'check-out' ? record.branchName : (record.checkoutTime ? "Main Office" : null)) ? (
+                          <span style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "3px 8px",
+                            borderRadius: "6px",
+                            background: "rgba(239, 68, 68, 0.12)",
+                            color: "#ef4444",
+                            fontSize: "0.82rem",
+                            fontWeight: 600
+                          }}>
+                            <MapPin size={12} />
+                            {record.checkOutBranchName || (record.branchName && record.type === 'check-out' ? record.branchName : (record.checkoutTime ? "Main Office" : "-"))}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--text-secondary)" }}>-</span>
+                        )}
                       </td>
                       <td>{Math.round(record.distanceFromOffice)}m</td>
                       <td>
@@ -487,6 +679,7 @@ export default function CheckAttendancePage() {
               </table>
             </div>
           )}
+        </div>
         </div>
 
         <footer style={{

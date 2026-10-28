@@ -1,1 +1,59 @@
-[]
+[
+  {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "name": "Demo Company",
+    "companyCode": "01",
+    "adminName": "Admin",
+    "adminEmail": "admin@example.com",
+    "adminPhone": "+919999999999",
+    "address": "",
+    "countryCode": "+91",
+    "employeeLimit": 25,
+    "status": "active",
+    "officeLatitude": 28.6139,
+    "officeLongitude": 77.209,
+    "officeRadiusMeters": 200,
+    "_count": {
+      "employees": 0
+    },
+    "createdAt": "2026-07-11T08:11:13.061Z"
+  },
+  {
+    "id": "c986e5e7-7c1f-4e6e-a034-f427759c7f0e",
+    "name": "Chirag101",
+    "companyCode": "01",
+    "adminName": "Chirag mutha",
+    "adminEmail": "chiragmutha2102@gmail.com",
+    "adminPhone": "+912580258025",
+    "address": "N-32-R-1-8-5",
+    "countryCode": "+91",
+    "employeeLimit": 25,
+    "status": "active",
+    "officeLatitude": 28.6139,
+    "officeLongitude": 77.209,
+    "officeRadiusMeters": 200,
+    "_count": {
+      "employees": 0
+    },
+    "createdAt": "2026-07-11T08:10:58.813Z"
+  },
+  {
+    "id": "1f209701-363d-4fc1-b0db-338319cfa212",
+    "name": "Solution Planets",
+    "companyCode": "01",
+    "adminName": "Dharmesh Doshi",
+    "adminEmail": "info@solutionplanets.com",
+    "adminPhone": "+919821155656",
+    "address": "6, Naresh Smruti, S L Road, Vithal Nagar, SL Road, Mulund West, Mumbai - 400080",
+    "countryCode": "+91",
+    "employeeLimit": 25,
+    "status": "active",
+    "officeLatitude": 28.6139,
+    "officeLongitude": 77.209,
+    "officeRadiusMeters": 200,
+    "_count": {
+      "employees": 0
+    },
+    "createdAt": "2026-07-10T11:50:54.501Z"
+  }
+]

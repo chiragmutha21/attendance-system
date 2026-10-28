@@ -24,6 +24,35 @@ export async function GET(request: Request) {
     await ensureDefaultCompany();
 
     const isSuperAdmin = await isSuperAdminRequest();
+    const local = getLocalCompanies();
+
+    const enrichCompany = (c: any) => {
+      const localComp = local.find((l) => l.id === c.id || (c.adminEmail && l.adminEmail && l.adminEmail.toLowerCase() === c.adminEmail.toLowerCase()));
+      const planReq = findPlanRequestByEmail(c.adminEmail || "");
+      const mode =
+        localComp?.attendanceMode ||
+        planReq?.attendanceMode ||
+        c.attendanceMode ||
+        ((c.subscription || "").toLowerCase().includes("without") ||
+        (c.subscription || "").toLowerCase().includes("plan a") ||
+        (c.subscription || "").toLowerCase().includes("plan-a")
+          ? "without_photo"
+          : "with_photo");
+
+      const lat = localComp?.officeLatitude ?? c.officeLatitude;
+      const lng = localComp?.officeLongitude ?? c.officeLongitude;
+      const rad = localComp?.officeRadiusMeters ?? c.officeRadiusMeters ?? 200;
+      const isSaved = localComp?.locationSaved === true || (lat !== null && lat !== undefined && !(lat === 28.6139 && (lng === 77.209 || lng === 77.2090)));
+
+      return {
+        ...c,
+        officeLatitude: lat,
+        officeLongitude: lng,
+        officeRadiusMeters: rad,
+        locationSaved: isSaved,
+        attendanceMode: mode,
+      };
+    };
 
     if (isSuperAdmin) {
       const companies = await db.company.findMany({
@@ -34,7 +63,7 @@ export async function GET(request: Request) {
         },
         orderBy: { createdAt: "asc" },
       });
-      return NextResponse.json({ success: true, companies });
+      return NextResponse.json({ success: true, companies: companies.map(enrichCompany) });
     }
 
     // Determine calling admin user's identity
@@ -84,7 +113,6 @@ export async function GET(request: Request) {
     }
 
     // Retrieve matching companies from local store and database
-    const local = getLocalCompanies();
     let matchingCompanies: any[] = [];
 
     if (effectiveEmail || effectiveCompanyId) {
@@ -114,7 +142,10 @@ export async function GET(request: Request) {
         });
 
         for (const dbComp of dbMatches) {
-          if (!matchingCompanies.some((c) => c.id === dbComp.id)) {
+          const existingIdx = matchingCompanies.findIndex((c) => c.id === dbComp.id);
+          if (existingIdx >= 0) {
+            matchingCompanies[existingIdx] = { ...matchingCompanies[existingIdx], ...dbComp };
+          } else {
             matchingCompanies.push(dbComp);
           }
         }
@@ -147,7 +178,7 @@ export async function GET(request: Request) {
 
     // Strict Isolation: If an admin email was provided, return ONLY their matching company
     if (matchingCompanies.length > 0) {
-      return NextResponse.json({ success: true, companies: matchingCompanies });
+      return NextResponse.json({ success: true, companies: matchingCompanies.map(enrichCompany) });
     }
 
     // Default fallback if completely unauthenticated

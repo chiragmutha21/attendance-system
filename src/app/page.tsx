@@ -97,12 +97,30 @@ export default function Home() {
         return;
       }
 
-      // Cache details in localStorage for auto-fetching next time
+      // Cache details in localStorage for auto-filling into onboarding
       if (typeof window !== "undefined") {
         localStorage.setItem(
           "presivox_user_cache",
-          JSON.stringify({ adminName, adminEmail, adminPhone, companyName, address })
+          JSON.stringify({
+            adminName,
+            adminEmail,
+            adminPhone,
+            companyName,
+            address,
+            attendanceMode,
+            employeeLimit: selectedPlan.employeeLimit,
+            planId: selectedPlan.id,
+          })
         );
+        localStorage.setItem("companyName", companyName.trim());
+        localStorage.setItem("adminName", adminName.trim());
+        localStorage.setItem("adminEmail", adminEmail.toLowerCase().trim());
+        localStorage.setItem("adminPhone", adminPhone.trim());
+        localStorage.setItem("address", address.trim());
+        localStorage.setItem("attendanceMode", attendanceMode);
+        localStorage.setItem("employeeLimit", String(selectedPlan.employeeLimit));
+        localStorage.setItem("selectedPlanId", selectedPlan.id);
+        localStorage.setItem("selectedPlanName", selectedPlan.name);
       }
 
       setSuccessMessage(true);

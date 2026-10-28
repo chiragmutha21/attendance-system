@@ -5,7 +5,24 @@ import { getCompanyIdFromRequest } from "@/lib/tenant";
 // GET: Fetch all observed festivals for the active company
 export async function GET(request: Request) {
   try {
-    const companyId = await getCompanyIdFromRequest(request);
+    let companyId = await getCompanyIdFromRequest(request);
+
+    // Verify company exists
+    const compExists = await db.company.findUnique({
+      where: { id: companyId },
+      select: { id: true },
+    });
+
+    if (!compExists) {
+      const fallbackComp = await db.company.findFirst({
+        where: { status: "active" },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+      if (fallbackComp) {
+        companyId = fallbackComp.id;
+      }
+    }
 
     const festivals = await db.festival.findMany({
       where: { companyId },
@@ -15,14 +32,34 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, festivals });
   } catch (error: any) {
     console.error("Fetch festivals error:", error);
-    return NextResponse.json({ error: "Failed to fetch festivals" }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Failed to fetch festivals", festivals: [] }, { status: 500 });
   }
 }
 
 // POST: Save/update the list of observed festivals for the active company
 export async function POST(request: Request) {
   try {
-    const companyId = await getCompanyIdFromRequest(request);
+    let companyId = await getCompanyIdFromRequest(request);
+
+    // Verify company exists in company_details table to satisfy foreign key constraint
+    const compExists = await db.company.findUnique({
+      where: { id: companyId },
+      select: { id: true },
+    });
+
+    if (!compExists) {
+      const fallbackComp = await db.company.findFirst({
+        where: { status: "active" },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+      if (fallbackComp) {
+        companyId = fallbackComp.id;
+      } else {
+        return NextResponse.json({ error: "No active company found to associate holidays with." }, { status: 400 });
+      }
+    }
+
     const body = await request.json();
     const { festivals } = body;
 
@@ -30,14 +67,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid festivals data format" }, { status: 400 });
     }
 
-    // Validate entries
-    const validatedFestivals: { companyId: string; name: string; date: string }[] = [];
+    // Validate entries and deduplicate by date to avoid unique constraint violations
+    const dateMap = new Map<string, { companyId: string; name: string; date: string }>();
+
     for (const f of festivals) {
       const name = (f.name || "").trim();
       const date = (f.date || "").trim();
 
       if (!name || !date) {
-        return NextResponse.json({ error: "Festival name and date are required" }, { status: 400 });
+        return NextResponse.json({ error: "Holiday name and date are required" }, { status: 400 });
       }
 
       // Check YYYY-MM-DD format
@@ -45,32 +83,29 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: `Invalid date format for ${name}: must be YYYY-MM-DD` }, { status: 400 });
       }
 
-      validatedFestivals.push({
+      dateMap.set(date, {
         companyId,
         name,
         date,
       });
     }
 
-    // Run transaction: delete all existing and insert new ones
-    await db.$transaction(async (tx) => {
-      // Remove old records for this company
-      await tx.festival.deleteMany({
-        where: { companyId },
-      });
+    const finalFestivals = Array.from(dateMap.values());
 
-      // Insert new records if any
-      if (validatedFestivals.length > 0) {
-        // Use createMany or loop through inserts (using createMany is safe for Postgres)
-        await tx.festival.createMany({
-          data: validatedFestivals,
-        });
-      }
+    // Pooler-safe sequential execution: delete old holidays and insert updated ones
+    await db.festival.deleteMany({
+      where: { companyId },
     });
 
-    return NextResponse.json({ success: true, message: "Festivals saved successfully" });
+    if (finalFestivals.length > 0) {
+      await db.festival.createMany({
+        data: finalFestivals,
+      });
+    }
+
+    return NextResponse.json({ success: true, message: "Holidays saved successfully", count: finalFestivals.length });
   } catch (error: any) {
     console.error("Save festivals error:", error);
-    return NextResponse.json({ error: "Failed to save festivals", details: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to save holidays", details: error.message }, { status: 500 });
   }
 }

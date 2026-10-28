@@ -1,6 +1,46 @@
 import { NextResponse } from "next/server";
 import { createPlanRequest, getAllPlanRequests } from "@/lib/planRequests";
 
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const email = searchParams.get("email")?.toLowerCase().trim();
+
+    if (!email) {
+      return NextResponse.json({ success: false, error: "Email query param required" }, { status: 400 });
+    }
+
+    const allRequests = getAllPlanRequests();
+    const matched = allRequests
+      .filter((r) => r.adminEmail.toLowerCase().trim() === email)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+    if (!matched) {
+      return NextResponse.json({ success: false, error: "No plan request found for this email" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      planRequest: {
+        id: matched.id,
+        companyName: matched.companyName,
+        adminName: matched.adminName,
+        adminEmail: matched.adminEmail,
+        adminPhone: matched.adminPhone,
+        address: matched.address,
+        attendanceMode: matched.attendanceMode || "with_photo",
+        employeeLimit: matched.employeeLimit,
+        planId: matched.planId,
+        planName: matched.planName,
+        status: matched.status,
+      },
+    });
+  } catch (err: any) {
+    console.error("Fetch plan request error:", err);
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();

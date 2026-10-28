@@ -48,11 +48,12 @@ function FestivalsContent() {
 
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
 
-  const fetchFestivals = async () => {
+  const fetchFestivals = async (overrideCompanyId?: string) => {
     setLoading(true);
     setError("");
     try {
-      const companyHeaders: { [key: string]: string } = selectedCompanyId ? { "x-company-id": selectedCompanyId } : {};
+      const activeCompId = overrideCompanyId !== undefined ? overrideCompanyId : selectedCompanyId;
+      const companyHeaders: { [key: string]: string } = activeCompId ? { "x-company-id": activeCompId } : {};
       const res = await fetch("/api/admin/festivals", {
         headers: companyHeaders
       });
@@ -92,11 +93,12 @@ function FestivalsContent() {
   useEffect(() => {
     const storedCompany = localStorage.getItem("selectedCompanyId") || "";
     setSelectedCompanyId(storedCompany);
+    fetchFestivals(storedCompany);
   }, []);
 
   useEffect(() => {
     if (selectedCompanyId) {
-      fetchFestivals();
+      fetchFestivals(selectedCompanyId);
     }
   }, [selectedCompanyId]);
 

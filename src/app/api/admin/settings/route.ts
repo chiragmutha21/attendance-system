@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { companySettingKey, defaultOfficeConfig, getCompanyIdFromRequest, getOfficeConfig } from "@/lib/tenant";
+import { defaultOfficeConfig, getCompanyIdFromRequest, getOfficeConfig } from "@/lib/tenant";
+import { getLocalCompanies, saveLocalCompanies } from "@/lib/planRequests";
 
 // GET: Fetch office config
 export async function GET(request: Request) {
@@ -30,22 +31,87 @@ export async function POST(request: Request) {
     const lngNum = Number.isFinite(parseFloat(longitude)) ? parseFloat(longitude) : defaultOfficeConfig.longitude;
     const radNum = Number.isFinite(parseInt(radius)) ? parseInt(radius) : defaultOfficeConfig.radius;
 
-    const company = await db.company.update({
-      where: { id: companyId },
-      data: {
-        officeLatitude: latNum,
-        officeLongitude: lngNum,
-        officeRadiusMeters: radNum,
-      },
-    });
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(companyId);
+
+    // 1. Update Database Company if UUID
+    let dbUpdated = false;
+    if (isUuid) {
+      try {
+        await db.company.update({
+          where: { id: companyId },
+          data: {
+            officeLatitude: latNum,
+            officeLongitude: lngNum,
+            officeRadiusMeters: radNum,
+          },
+        });
+        dbUpdated = true;
+
+        // Sync main office branch in DB
+        const mainBranch = await db.branch.findFirst({
+          where: { companyId, isMainOffice: true },
+        });
+
+        if (mainBranch) {
+          await db.branch.update({
+            where: { id: mainBranch.id },
+            data: {
+              latitude: latNum,
+              longitude: lngNum,
+              radiusMeters: radNum,
+            },
+          });
+        } else {
+          await db.branch.create({
+            data: {
+              companyId,
+              name: "Head Office",
+              address: "Main Office Location",
+              latitude: latNum,
+              longitude: lngNum,
+              radiusMeters: radNum,
+              isMainOffice: true,
+            },
+          });
+        }
+      } catch (dbErr: any) {
+        console.warn("Database company update warning:", dbErr.message);
+      }
+    }
+
+    // 2. Update local-companies store to persist across refreshes
+    try {
+      const local = getLocalCompanies();
+      const compIdx = local.findIndex((c: any) => c.id === companyId);
+      if (compIdx >= 0) {
+        local[compIdx].officeLatitude = latNum;
+        local[compIdx].officeLongitude = lngNum;
+        local[compIdx].officeRadiusMeters = radNum;
+        local[compIdx].locationSaved = true;
+        saveLocalCompanies(local);
+      } else {
+        local.push({
+          id: companyId,
+          officeLatitude: latNum,
+          officeLongitude: lngNum,
+          officeRadiusMeters: radNum,
+          locationSaved: true,
+        });
+        saveLocalCompanies(local);
+      }
+    } catch (localErr: any) {
+      console.warn("Local companies update warning:", localErr.message);
+    }
 
     return NextResponse.json({
       success: true,
+      locationSaved: true,
       config: {
-        latitude: company.officeLatitude,
-        longitude: company.officeLongitude,
-        radius: company.officeRadiusMeters,
-      }
+        latitude: latNum,
+        longitude: lngNum,
+        radius: radNum,
+        locationSaved: true,
+      },
     });
   } catch (error: any) {
     console.error("Update settings error:", error);

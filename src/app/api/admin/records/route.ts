@@ -11,6 +11,7 @@ export async function GET(request: Request) {
     const status = searchParams.get("status") || "";
     const employeeId = searchParams.get("employeeId") || "";
     const type = searchParams.get("type") || "";
+    const branchId = searchParams.get("branchId") || "";
     const startDateStr = searchParams.get("startDate");
     const endDateStr = searchParams.get("endDate");
 
@@ -35,6 +36,16 @@ export async function GET(request: Request) {
       where.employeeId = employeeId;
     }
 
+    // 4. Branch filter
+    if (branchId && branchId !== "all") {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(branchId);
+      if (isUuid) {
+        where.branchId = branchId;
+      } else {
+        where.branchName = branchId;
+      }
+    }
+
     // 5. Date range filter
     if (startDateStr || endDateStr) {
       where.checkInTime = {};
@@ -51,6 +62,21 @@ export async function GET(request: Request) {
       where,
       orderBy: { checkInTime: "asc" },
     });
+
+    // Fetch company branches to map branch names accurately
+    const companyBranches = await db.branch.findMany({
+      where: { companyId },
+      select: { id: true, name: true, isMainOffice: true },
+    });
+    const branchMap = new Map(companyBranches.map((b) => [b.id, b.name]));
+    const mainBranch = companyBranches.find((b) => b.isMainOffice) || companyBranches[0];
+    const defaultBranchName = mainBranch?.name || "Main Office";
+
+    const getBranchName = (r: any) => {
+      if (r?.branchName && r.branchName.trim() !== "") return r.branchName;
+      if (r?.branchId && branchMap.has(r.branchId)) return branchMap.get(r.branchId);
+      return defaultBranchName;
+    };
 
     const checkIns = records.filter(r => r.type === "check-in");
     const checkOuts = records.filter(r => r.type === "check-out");
@@ -93,10 +119,14 @@ export async function GET(request: Request) {
         }
       }
 
+      const checkInBranch = getBranchName(ci);
+      const checkOutBranch = matchingCO ? getBranchName(matchingCO) : null;
+
       return {
         ...ci,
-        checkInBranchName: ci.branchName || null,
-        checkOutBranchName: matchingCO?.branchName || null,
+        branchName: checkInBranch,
+        checkInBranchName: checkInBranch,
+        checkOutBranchName: checkOutBranch,
         checkoutTime,
         workHours,
       };
@@ -138,10 +168,14 @@ export async function GET(request: Request) {
         }
       }
 
+      const coBranch = getBranchName(co);
+      const ciBranch = matchingCI ? getBranchName(matchingCI) : null;
+
       return {
         ...co,
-        checkInBranchName: matchingCI?.branchName || null,
-        checkOutBranchName: co.branchName || null,
+        branchName: coBranch,
+        checkInBranchName: ciBranch,
+        checkOutBranchName: coBranch,
         originalCheckInTime: checkinTimeVal,
         workHours,
       };
@@ -166,14 +200,18 @@ export async function GET(request: Request) {
         return coDateStr === ciDateStr && new Date(co.checkInTime) > new Date(ci.checkInTime);
       });
       return !isMatched;
-    }).map((co: any) => ({
-      ...co,
-      checkInBranchName: null,
-      checkOutBranchName: co.branchName || null,
-      checkoutTime: co.checkInTime,
-      checkInTime: null,
-      workHours: null,
-    }));
+    }).map((co: any) => {
+      const coBranch = getBranchName(co);
+      return {
+        ...co,
+        branchName: coBranch,
+        checkInBranchName: null,
+        checkOutBranchName: coBranch,
+        checkoutTime: co.checkInTime,
+        checkInTime: null,
+        workHours: null,
+      };
+    });
 
     // Filter by type requested
     let resultRecords = [];
